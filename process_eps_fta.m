@@ -52,14 +52,14 @@ function sProcess = GetDescription()
     sProcess.options.isZeroPad.Comment     = 'Zero-Padding (in case of shorter epochs)';
     sProcess.options.isZeroPad.Type        = 'checkbox';
     sProcess.options.isZeroPad.Value       = 0;
-    sProcess.options.isZeroPad.Class       = 'cZeroPad';
+    sProcess.options.isZeroPad.Controller  = 'cZeroPad';
     
     % === Zero-Padding
     sProcess.options.minlengthzeropad.Comment     = 'Minimum Epoch Length';
     sProcess.options.minlengthzeropad.Type        = 'value';
     sProcess.options.minlengthzeropad.Value       = {5, 'seconds', 1};
     sProcess.options.minlengthzeropad.Class       = 'cZeroPad';
-    sProcess.options.minlengthzeropad.Hidden      = 1;
+    %sProcess.options.minlengthzeropad.Hidden      = 1;
     
     
     
