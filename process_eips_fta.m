@@ -1,4 +1,4 @@
-function varargout = process_eips_fta(varargin )
+function varargout = process_eips_fta( varargin )
 %%function [TF, FreqVector, Nwin, Messages] = process_psd_fta_test( F, sfreq, WinLength, WinOverlap, BadSegments, ImagingKernel, isVariance, FileName, EventType )
 eval(macro_method);
 end
@@ -46,6 +46,10 @@ function sProcess = GetDescription()
     sProcess.options.Lepochoverlap.Comment = 'Lower bound epoch overlap';
     sProcess.options.Lepochoverlap.Type    = 'value';
     sProcess.options.Lepochoverlap.Value   = {50, '%', 0};
+    % === Zero-Padding
+    sProcess.options.isZeroPad.Comment = 'Zero-Padding in case of short epochs';
+    sProcess.options.isZeroPad.Type    = 'Checkbox';
+    sProcess.options.isZeroPad.Value   = {0};
     
     
 end
