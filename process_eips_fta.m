@@ -256,7 +256,7 @@ end
    ChannelEnd=WindowLength;
 %%--START OF THE ACTUAL COMPUTING---
    %bst_progress('start', 'FTA', 'Computing PSD...');
-   bst_progress('start', 'FTA', ['Computing PSD ' strMap '...'], 0, (OWindowN-Balancing));
+   bst_progress('start', 'FTA', ['Computing PSD...'], 0, (OWindowN-Balancing));
    for WindowNumber=1:(OWindowN-Balancing)       
        WindowedDataM=subDataMat(1:ChannelNumber, ChannelStart:ChannelEnd);
        WindowFFT=fft(WindowedDataM,[],2);
