@@ -125,7 +125,7 @@ function OutputFiles = Run(sProcess, sInput)
         [ap,TotWindowN]=Compute(sProcess,DataStruct.F, WindowLength, UpperBound, LowerBound, 0, ImagingKernel);
     else
         if isfield(DataStruct.Events, 'samples')
-       Epochs=DataStruct.Events(BoundPos).samples;
+        Epochs=DataStruct.Events(BoundPos).samples;
         else
             Epochs=int32(DataStruct.Events(BoundPos).times/Srate);
         end
@@ -145,7 +145,6 @@ function OutputFiles = Run(sProcess, sInput)
            ap=ap+ap_loc;
            TotWindowN=TotWindowN+WindowN_loc;
        end
-       
    end
    
    
