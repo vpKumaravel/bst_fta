@@ -1,5 +1,32 @@
 function varargout = process_plfit_fta(varargin )
-%%function
+% process_plfit_fta: Given the power spectral density, the function computes the following:
+%                       a) Normalized power spectrum @ Tagged-Frequency
+%                       with respect to the user-defined frequency window
+%                       b) Power spectrum @ Tagged-Frequency
+%                       c) Power spectrum @ Background Frequency (or
+%                       baseline)
+%            
+%
+% @=============================================================================
+% This function is a custom Brainstorm Process used to analyze
+% Frequency-Tagged EEG data.
+% 
+%
+% This software is distributed under the terms of the GNU General Public License
+% as published by the Free Software Foundation. Further details on the GPLv3
+% license can be found at http://www.gnu.org/copyleft/gpl.html.
+% 
+% FOR RESEARCH PURPOSES ONLY. THE SOFTWARE IS PROVIDED "AS IS," AND THE
+% UNIVERSITY OF SOUTHERN CALIFORNIA AND ITS COLLABORATORS DO NOT MAKE ANY
+% WARRANTY, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF
+% MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, NOR DO THEY ASSUME ANY
+% LIABILITY OR RESPONSIBILITY FOR THE USE OF THIS SOFTWARE.
+%
+%
+% =============================================================================@
+%
+% Authors: Velu Prabhakar Kumaravel & Marco Buiatti
+%
 eval(macro_method);
 end
 %% ===== GET DESCRIPTION =====
@@ -22,9 +49,9 @@ function sProcess = GetDescription()
     sProcess.options.TaggedF.Type    = 'value';
     sProcess.options.TaggedF.Value   = {0.8, 'Hz', 2};
     % === Half Frequency Observation Window
-    sProcess.options.HFOW.Comment = 'Half Frequency Observation Window';
-    sProcess.options.HFOW.Type    = 'value';
-    sProcess.options.HFOW.Value   = {1, 'Hz', 2};
+    sProcess.options.NFR.Comment = ['Normalization Frequency Range ' char(177)];
+    sProcess.options.NFR.Type    = 'value';
+    sProcess.options.NFR.Value   = {1, 'Hz', 2};
     % === Power Law or Scalar Fit
     sProcess.options.CheckPowLaw.Comment = 'Power-law fit, if unchecked scalar fit will be applied';
     sProcess.options.CheckPowLaw.Type    = 'checkbox';
@@ -49,7 +76,7 @@ function OutputFiles = Run(sProcess, sInput)
     %Inizialization
     np=ones(size(DataMat,1),1);
     TaggedF=sProcess.options.TaggedF.Value{1};    
-    width=sProcess.options.HFOW.Value{1};
+    width=sProcess.options.NFR.Value{1};
     %check if TF is positive
     if(TaggedF<=0)
     bst_report('Error', sProcess, [], 'Selected Negative Tagged Frequency! Tagged Frequency must be positive');
@@ -72,7 +99,7 @@ function OutputFiles = Run(sProcess, sInput)
     if(TaggedF+width)<=max(DataStruct.Freqs);
         [~, PosUpBound]=min(abs(DataStruct.Freqs-(TaggedF+width)));
     else
-        [~, PosUpBound]=size(DataStruct.Freqs);
+        [~, PosUpBound]=size(DataStruct.Freqs, 2);
     end
     %check if frequency window is at least 3 frequency bin
     if(PosUpBound-PosLowBound<=3)
@@ -132,4 +159,84 @@ function OutputFiles = Run(sProcess, sInput)
     save(OutputFiles,'-struct','DataOut');
     % Reference OutputFile in the database:
     db_add_data(sInput.iStudy, OutputFiles,DataOut);
+    
+    % Code for creating 2 other output files - one for tag frequency alone
+    % and another for baseline or background frequencies alone
+    if(1)
+        %Creating output file for TF
+        if strcmp(DataStruct.DataType,'data')
+            DataOut= db_template('datamat');
+            DataOut.F=zeros(size(DataMat,1),1);
+            DataOut.F(:,1) = pstf;
+            DataOut.Device=DataStruct.Device;
+            OutputFiles=bst_process('GetNewFilename',bst_fileparts(sInput.FileName),'data_concat');
+        elseif strcmp(DataStruct.DataType,'results')
+            DataOut= db_template('resultsmat');
+            DataOut.ImageGridAmp = zeros(size(DataMat,1),1);
+            DataOut.ImageGridAmp(:,1) = pstf;
+            %extracting result path
+            [ ~ ,Filepath]=strtok(sInput.DataFile, '|');%removing "link" text from string
+            [Rpath,Filepath]=strtok(Filepath, '|');%storing the right filepath of the result
+            RDataMat=in_bst_data(Rpath);
+            DataOut.ImagingKernel=RDataMat.ImagingKernel;
+            Filepath=strtok(Filepath, '|');%path to the 'result' file, Rpath=path to the sensor file
+            OutputFiles=bst_process('GetNewFilename',bst_fileparts(Filepath),'results_concat');
+            DataOut.DataFile=Filepath;
+            DataOut.Function=DataStruct.Function;
+            DataOut.HeadModelFile=DataStruct.HeadModelFile;
+            DataOut.SurfaceFile=DataStruct.SurfaceFile;
+            DataOut.nAvg=DataStruct.nAvg;
+            DataOut.Whitener=DataStruct.Whitener;
+            DataOut.GoodChannel=DataStruct.GoodChannel;
+        end
+        % ===== SAVE FILE =====
+        DataOut.ChannelFlag=DataStruct.ChannelFlag;
+        DataOut.Comment=sprintf('TF %0.2f Hz',TaggedF);
+        DataOut.Time=DataStruct.Time;
+        DataOut.History=DataStruct.History;
+        DataOut= bst_history('add', DataOut, 'compute', 'Frequency Tag Peak');
+        DataOut.Options=sProcess.options;
+        % Save the new file
+        save(OutputFiles,'-struct','DataOut');
+        % Reference OutputFile in the database:
+        db_add_data(sInput.iStudy, OutputFiles,DataOut);
+        
+        %Creating output file for BL
+        if strcmp(DataStruct.DataType,'data')
+            DataOut= db_template('datamat');
+            DataOut.F=zeros(size(DataMat,1),1);
+            DataOut.F(:,1) = psbl;
+            DataOut.Device=DataStruct.Device;
+            OutputFiles=bst_process('GetNewFilename',bst_fileparts(sInput.FileName),'data_concat');
+        elseif strcmp(DataStruct.DataType,'results')
+            DataOut= db_template('resultsmat');
+            DataOut.ImageGridAmp = zeros(size(DataMat,1),1);
+            DataOut.ImageGridAmp(:,1) = psbl;
+            %extracting result path
+            [ ~ ,Filepath]=strtok(sInput.DataFile, '|');%removing "link" text from string
+            [Rpath,Filepath]=strtok(Filepath, '|');%storing the right filepath of the result
+            RDataMat=in_bst_data(Rpath);
+            DataOut.ImagingKernel=RDataMat.ImagingKernel;
+            Filepath=strtok(Filepath, '|');%path to the 'result' file, Rpath=path to the sensor file
+            OutputFiles=bst_process('GetNewFilename',bst_fileparts(Filepath),'results_concat');
+            DataOut.DataFile=Filepath;
+            DataOut.Function=DataStruct.Function;
+            DataOut.HeadModelFile=DataStruct.HeadModelFile;
+            DataOut.SurfaceFile=DataStruct.SurfaceFile;
+            DataOut.nAvg=DataStruct.nAvg;
+            DataOut.Whitener=DataStruct.Whitener;
+            DataOut.GoodChannel=DataStruct.GoodChannel;
+        end
+        % ===== SAVE FILE =====
+        DataOut.ChannelFlag=DataStruct.ChannelFlag;
+        DataOut.Comment=sprintf('BL %0.2f Hz',TaggedF);
+        DataOut.Time=DataStruct.Time;
+        DataOut.History=DataStruct.History;
+        DataOut= bst_history('add', DataOut, 'compute', 'Frequency Tag Peak');
+        DataOut.Options=sProcess.options;
+        % Save the new file
+        save(OutputFiles,'-struct','DataOut');
+        % Reference OutputFile in the database:
+        db_add_data(sInput.iStudy, OutputFiles,DataOut);
+    end
 end
