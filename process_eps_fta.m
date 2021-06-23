@@ -313,7 +313,6 @@ function [ps, interval, nWin] = fta_ps(inputData, winLen, uppBound, lowBound, ps
 
     w = winLen*(sum(psdKernel.^2));	%window squared and summed
 
-<<<<<<< HEAD
     ap = 0;
     for iSeg = 1:length(inputData)
         DataLength = size(inputData{iSeg}(1,:),2);
@@ -325,24 +324,6 @@ function [ps, interval, nWin] = fta_ps(inputData, winLen, uppBound, lowBound, ps
             Nmax=ceil(DataLength/(winLen*lowBound)); % max number of consecutive HALF windows (non-overlapping if l is multiple of wl/2)
             winStart=floor((DataLength-winLen)/(Nmax-2)); % step
         end
-=======
-    for ch = 1:ChNumber
-        ap = 0;
-        for iSeg = 1:length(inputData)
-            
-            DataLength = size(inputData{iSeg}(ch,:),2);
-            
-            if DataLength-winLen<floor(winLen*(1-uppBound))  % No overlapping if the data length is lesser than
-                DataLength=winLen;
-                Nmax=ceil(DataLength/(winLen*lowBound)); % max number of consecutive HALF windows (non-overlapping if l is multiple of wl/2)
-                winStart=0;
-            else
-                Nmax=ceil(DataLength/(winLen*lowBound)); % max number of consecutive HALF windows (non-overlapping if l is multiple of wl/2)
-                winStart=floor((DataLength-winLen)/(Nmax-2)); % step
-            end
-            
-            nWin(iSeg)=Nmax-1; % number of consecutive full windows
->>>>>>> 1c13a10c51ee472f55702cb413840611eb062ab6
 
         nWin(iSeg)=Nmax-1; % number of consecutive full windows
 
@@ -358,8 +339,8 @@ function [ps, interval, nWin] = fta_ps(inputData, winLen, uppBound, lowBound, ps
             ap_loc = ap_loc + abs(fwd).^2;
         end
         ap = ap + ap_loc; % output average power
+        bst_progress('inc',  ceil(1/length(inputData)*100));
     end
-<<<<<<< HEAD
 
     n=sum(nWin);
     
@@ -368,6 +349,3 @@ function [ps, interval, nWin] = fta_ps(inputData, winLen, uppBound, lowBound, ps
     ps(:,winLen/2 +1)=ap(:,winLen/2 +1)/(w*n);
     interval=0:1:(winLen/2);
 end
-=======
-end
->>>>>>> 1c13a10c51ee472f55702cb413840611eb062ab6
