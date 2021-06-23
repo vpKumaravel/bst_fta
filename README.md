@@ -1,2 +1,2 @@
 # brainStormProcessFTA
-Internal Repository for paper on BST FTA pipeline
+Private Repository for paper on BST FTA pipeline
