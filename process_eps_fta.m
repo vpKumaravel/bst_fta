@@ -105,7 +105,7 @@ end
 function OutputFiles = Run(sProcess, sInput)
    % Initializing returned values
    OutputFiles = {};
-   ImagingKernel={};
+   imagingKernel={};
    RDataMat={};
    Filepath=sInput.FileName;
    %Loading Data Matrix
@@ -117,7 +117,7 @@ function OutputFiles = Run(sProcess, sInput)
        [ ~ ,Filepath]=strtok(Filepath, '|');%removing "link" text from string
        [Rpath,Filepath]=strtok(Filepath, '|');%storing the right filepath of the result
        RDataMat=in_bst_data(Rpath);
-       ImagingKernel=RDataMat.ImagingKernel;
+       imagingKernel=RDataMat.ImagingKernel;
        Filepath=strtok(Filepath, '|');%path to the 'result' file, Rpath=path to the sensor file
    end
    
@@ -162,11 +162,15 @@ function OutputFiles = Run(sProcess, sInput)
         [~,nSegments]=size(seg_intervals);
 
         for iSeg=1:nSegments-1
-            if(iSeg == 1) % only for the first segment, start from the nth sample
-                segDataStruct{iSeg}=inputData(1:size(inputData,1), (seg_intervals(iSeg)):(seg_intervals(iSeg+1)));
-            else % from second segment onwards, start from the (n+1)th sample
                 segDataStruct{iSeg}=inputData(1:size(inputData,1), (seg_intervals(iSeg)+1):(seg_intervals(iSeg+1)));
-            end
+        end
+        
+        if(seg_intervals(1) ~= 1)
+             segDataStruct{length(segDataStruct)+1}=inputData(1:size(inputData,1), 1:seg_intervals(1));
+        end
+        
+        if(seg_intervals(end) ~= size(inputData,2))
+            segDataStruct{length(segDataStruct)+1}=inputData(1:size(inputData,1), seg_intervals(end):size(inputData,2));
         end
         
         inputData = segDataStruct; % override inputData in case of boundary segments
@@ -242,12 +246,7 @@ function OutputFiles = Run(sProcess, sInput)
   UpperBound=sProcess.options.Uepochoverlap.Value{1}/100;
   LowerBound=sProcess.options.Lepochoverlap.Value{1}/100;
    
-  [ps, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, UpperBound, LowerBound, psdKernel);
-  
-  % Apply imaging kernel for the source
-  if ~isempty(ImagingKernel)
-      ps = ImagingKernel * ps;
-  end
+  [ps, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, UpperBound, LowerBound, psdKernel, imagingKernel);
   
    %---Power Spectrum---
    ps = permute(ps, [1 3 2]); 
@@ -289,7 +288,7 @@ function OutputFiles = Run(sProcess, sInput)
        FileMat.Whitener=RDataMat.Whitener;
        FileMat.History=RDataMat.History;
    end
-   FileMat = bst_history('add', FileMat, 'compute', 'Interlaced Power Spectrum');
+   FileMat = bst_history('add', FileMat, 'compute', 'Frequency Tagging Analysis - Power Spectrum');
    % Save the new file
     save(OutputFiles,'-struct','FileMat');
     % Reference OutputFile in the database:
@@ -297,9 +296,9 @@ function OutputFiles = Run(sProcess, sInput)
 end
 
 %% ===== COMPUTE =====
-function [ps, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, UpperBound, LowerBound, psdKernal)
+function [ps, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, UpperBound, LowerBound, psdKernel, imagingKernel)
     
-    [ps, interval, Nwin] = fta_ps_aw(inputData, WindowLength, UpperBound, LowerBound, psdKernal);    
+    [ps, interval, Nwin] = fta_ps(inputData, WindowLength, UpperBound, LowerBound, psdKernel, imagingKernel);    
     bst_report('Info', sProcess, sInput, sprintf('Number of windows used: %d\n',Nwin));
     
 end
@@ -307,43 +306,45 @@ end
 
 %% ===== PSD Adaptive Windowing Logic goes here =====
 
-function [ps, interval, nWin] = fta_ps_aw(inputData, winLen, uppBound, lowBound, psdKernal)
+function [ps, interval, nWin] = fta_ps(inputData, winLen, uppBound, lowBound, psdKernel, imagingKernel)
 
     [ChNumber, ~]= size(inputData{1});
-    ps = zeros(ChNumber, winLen/2 +1);
     nWin = zeros(1,length(inputData));
 
-    w = winLen*(sum(psdKernal.^2));	%window squared and summed
+    w = winLen*(sum(psdKernel.^2));	%window squared and summed
 
-    for ch = 1:ChNumber
-        ap = 0;
-        for iSeg = 1:length(inputData)
-            
-            DataLength = size(inputData{iSeg}(ch,:),2);
-            
-            if DataLength-winLen<floor(winLen*(1-uppBound))  % No overlapping if the data length is lesser than
-                DataLength=winLen;
-                Nmax=ceil(2*DataLength/(winLen*lowBound)); % max number of consecutive HALF windows (non-overlapping if l is multiple of wl/2)
-                winStart=0;
-            else
-                Nmax=ceil(DataLength/(winLen*lowBound)); % max number of consecutive HALF windows (non-overlapping if l is multiple of wl/2)
-                winStart=floor((DataLength-winLen)/(Nmax-2)); % step
-            end
-            
-            nWin(iSeg)=Nmax-1; % number of consecutive full windows
-
-            ap_loc=0; %average power
-            for i=1:nWin(iSeg)
-                wd=psdKernal.*inputData{iSeg}(ch,(i-1)*winStart+1:(i-1)*winStart+winLen);
-                ap_loc=ap_loc + abs(fft(wd)).^2;
-            end
-            ap = ap + ap_loc; % output average power
+    ap = 0;
+    for iSeg = 1:length(inputData)
+        DataLength = size(inputData{iSeg}(1,:),2);
+        if DataLength-winLen<floor(winLen*(1-uppBound))  % No overlapping if the data length is lesser than
+            DataLength=winLen;
+            Nmax=ceil(DataLength/(winLen*lowBound)); % max number of consecutive HALF windows (non-overlapping if l is multiple of wl/2)
+            winStart=0;
+        else
+            Nmax=ceil(DataLength/(winLen*lowBound)); % max number of consecutive HALF windows (non-overlapping if l is multiple of wl/2)
+            winStart=floor((DataLength-winLen)/(Nmax-2)); % step
         end
 
-        n=sum(nWin);
-        ps(ch,1)= ap(1)/(w*n);
-        ps(ch,2:winLen/2)=(ap(2:winLen/2)+ap(winLen:-1:winLen/2 +2))/(w*n);
-        ps(ch,winLen/2 +1)=ap(winLen/2 +1)/(w*n);
-        interval=0:1:(winLen/2);
+        nWin(iSeg)=Nmax-1; % number of consecutive full windows
+
+        ap_loc=0; %average power
+        for i=1:nWin(iSeg)
+            for ch = 1:ChNumber
+                wd(ch,:)=psdKernel.*inputData{iSeg}(ch,(i-1)*winStart+1:(i-1)*winStart+winLen);
+            end
+            fwd = fft(wd,[],2);
+            if ~isempty(imagingKernel)
+                fwd = imagingKernel * fwd; % computing the source psd
+            end
+            ap_loc = ap_loc + abs(fwd).^2;
+        end
+        ap = ap + ap_loc; % output average power
     end
+
+    n=sum(nWin);
+    
+    ps(:,1)=ap(:,1)/(w*n);
+    ps(:,2:winLen/2)=(ap(:,2:winLen/2)+ap(:,winLen:-1:winLen/2 +2))/(w*n);
+    ps(:,winLen/2 +1)=ap(:,winLen/2 +1)/(w*n);
+    interval=0:1:(winLen/2);
 end
