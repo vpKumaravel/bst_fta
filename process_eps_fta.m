@@ -323,7 +323,7 @@ function [ps, interval, nWin] = fta_ps_aw(inputData, winLen, uppBound, lowBound,
             
             if DataLength-winLen<floor(winLen*(1-uppBound))  % No overlapping if the data length is lesser than
                 DataLength=winLen;
-                Nmax=ceil(2*DataLength/(winLen*lowBound)); % max number of consecutive HALF windows (non-overlapping if l is multiple of wl/2)
+                Nmax=ceil(DataLength/(winLen*lowBound)); % max number of consecutive HALF windows (non-overlapping if l is multiple of wl/2)
                 winStart=0;
             else
                 Nmax=ceil(DataLength/(winLen*lowBound)); % max number of consecutive HALF windows (non-overlapping if l is multiple of wl/2)
