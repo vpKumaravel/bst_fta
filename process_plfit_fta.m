@@ -25,7 +25,7 @@ function varargout = process_plfit_fta(varargin )
 %
 % =============================================================================@
 %
-% Authors: Velu Prabhakar Kumaravel & Marco Buiatti
+% Authors: Marco Buiatti & Velu Prabhakar Kumaravel
 %
 eval(macro_method);
 end
@@ -51,7 +51,7 @@ function sProcess = GetDescription()
     % === Half Frequency Observation Window
     sProcess.options.NFR.Comment = ['Normalization Frequency Range ' char(177)];
     sProcess.options.NFR.Type    = 'value';
-    sProcess.options.NFR.Value   = {1, 'Hz', 2};
+    sProcess.options.NFR.Value   = {0.3, 'Hz', 2};
     % === Power Law or Scalar Fit
     sProcess.options.CheckPowLaw.Comment = 'Power-law fit, if unchecked scalar fit will be applied';
     sProcess.options.CheckPowLaw.Type    = 'checkbox';
@@ -81,14 +81,14 @@ function OutputFiles = Run(sProcess, sInput)
     if(TaggedF<=0)
     bst_report('Error', sProcess, [], 'Selected Negative Tagged Frequency! Tagged Frequency must be positive');
         return;
-    end;
+    end
     %check if TF is less than the maximum frequency value
     if(TaggedF>DataStruct.Freqs(size(DataStruct.Freqs,2)))
     bst_report('Error', sProcess, [], 'Tagged Frequency greater than maximum data frequency');
         return;
-    end;
+    end
     %finding Tagged F position
-    [~, PosTF]=min(abs(DataStruct.Freqs-TaggedF))   
+    [~, PosTF]=min(abs(DataStruct.Freqs-TaggedF));   
     %finding upper and lower bound for frequency fit
     if (TaggedF-width)>0
     [~, PosLowBound]=min(abs(DataStruct.Freqs-(TaggedF-width)));
@@ -117,7 +117,7 @@ function OutputFiles = Run(sProcess, sInput)
             [Psp,Ssp] = polyfit(log(DataStruct.Freqs(fitpoints)),log(DataMat(el,fitpoints)),fitorder);
             psbl(el)  =exp(polyval(Psp,log(DataStruct.Freqs(PosTF))));
         else
-            psbl(el)  =mean(DataMat(el,fitpoints))
+            psbl(el)  =mean(DataMat(el,fitpoints));
         end
     end
     %Creating output file
@@ -168,12 +168,14 @@ function OutputFiles = Run(sProcess, sInput)
             DataOut= db_template('datamat');
             DataOut.F=zeros(size(DataMat,1),1);
             DataOut.F(:,1) = pstf;
+            DataOut.F(:,2) = pstf;
             DataOut.Device=DataStruct.Device;
             OutputFiles=bst_process('GetNewFilename',bst_fileparts(sInput.FileName),'data_concat');
         elseif strcmp(DataStruct.DataType,'results')
             DataOut= db_template('resultsmat');
             DataOut.ImageGridAmp = zeros(size(DataMat,1),1);
             DataOut.ImageGridAmp(:,1) = pstf;
+            DataOut.ImageGridAmp(:,2) = pstf;
             %extracting result path
             [ ~ ,Filepath]=strtok(sInput.DataFile, '|');%removing "link" text from string
             [Rpath,Filepath]=strtok(Filepath, '|');%storing the right filepath of the result
@@ -206,12 +208,14 @@ function OutputFiles = Run(sProcess, sInput)
             DataOut= db_template('datamat');
             DataOut.F=zeros(size(DataMat,1),1);
             DataOut.F(:,1) = psbl;
+            DataOut.F(:,2) = psbl;
             DataOut.Device=DataStruct.Device;
             OutputFiles=bst_process('GetNewFilename',bst_fileparts(sInput.FileName),'data_concat');
         elseif strcmp(DataStruct.DataType,'results')
             DataOut= db_template('resultsmat');
             DataOut.ImageGridAmp = zeros(size(DataMat,1),1);
             DataOut.ImageGridAmp(:,1) = psbl;
+            DataOut.ImageGridAmp(:,2) = psbl;
             %extracting result path
             [ ~ ,Filepath]=strtok(sInput.DataFile, '|');%removing "link" text from string
             [Rpath,Filepath]=strtok(Filepath, '|');%storing the right filepath of the result
