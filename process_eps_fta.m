@@ -252,7 +252,7 @@ function OutputFiles = Run(sProcess, sInput)
    ps = permute(ps, [1 3 2]); 
    %Output file creation
    f=interval*sRate/WindowLength;
-   [ChannelNumber,~ ,~]=size(ps);
+   %[ChannelNumber,~ ,~]=size(ps);
    %Rows=1:1:ChannelNumber;
    FileMat = db_template('timefreqmat');
    OutputFiles=bst_process('GetNewFilename',bst_fileparts(Filepath),'timefreq_psd');
