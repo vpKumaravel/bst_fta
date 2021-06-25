@@ -252,8 +252,8 @@ function OutputFiles = Run(sProcess, sInput)
    ps = permute(ps, [1 3 2]); 
    %Output file creation
    f=interval*sRate/WindowLength;
-   %[ChannelNumber,~ ,~]=size(ps);
-   %Rows=1:1:ChannelNumber;
+   [ChannelNumber,~ ,~]=size(ps);
+   Rows=1:1:ChannelNumber;
    FileMat = db_template('timefreqmat');
    OutputFiles=bst_process('GetNewFilename',bst_fileparts(Filepath),'timefreq_psd');
    FileMat.ChannelFlag=DataStruct.ChannelFlag;
@@ -262,18 +262,9 @@ function OutputFiles = Run(sProcess, sInput)
    FileMat.DataType='data';
    FileMat.Time=[0,size(DataStruct.F,2)*(1/sRate)];
    FileMat.Freqs=f;
-   %FileMat.RowNames=Rows;
-   % BUG begins here
-%    if(strcmp(sInput.FileType,'data')||strcmp(sInput.FileType,'raw'))
-%        FileMat.Device=DataStruct.Device;
-%        sRows={1,ChannelNumber};
-%        for ind=1:1:ChannelNumber
-%            sRows(1,ind)=cellstr(sprintf('%d',ind));           
-%        end
-%       FileMat.RowNames=sRows;
-%    end
-   % BUG ends here
-   if(strcmp(sInput.FileType,'data')||strcmp(sInput.FileType,'raw'))
+   FileMat.RowNames=Rows;
+
+   if(strcmp(sInput.FileType,'data')||strcmp(sInput.FileType,'raw')) % sensor-level analysis
        ChannelFile = bst_get('ChannelFileForStudy', sInput.FileName);
        if isempty(ChannelFile)
            error('No channel definition available for this file.');
@@ -283,7 +274,6 @@ function OutputFiles = Run(sProcess, sInput)
        % Get channels we want to process
        iChannels = 1:length(ChannelMat.Channel);
        FileMat.RowNames = {ChannelMat.Channel(iChannels).Name};
-
    end
    
    FileMat.Measure='power';
