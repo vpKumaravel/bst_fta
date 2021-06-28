@@ -28,7 +28,7 @@ end
 %% ===== GET DESCRIPTION =====
 function sProcess = GetDescription()
     % Description the process
-    sProcess.Comment     = 'Inter Trial Phase Coherence';
+    sProcess.Comment     = 'Inter-Trial Phase Coherence';
     sProcess.FileTag     = 'itc';
     sProcess.Category    = 'File';
     sProcess.SubGroup    = 'Frequency Tagging Analysis';
@@ -172,7 +172,7 @@ function OutputFiles = Run(sProcess, sInput)
    
  
    
-  [itc, ang, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, sRate, imagingKernel);
+  [itc, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, imagingKernel);
   
    %---Power Spectrum---
    itc = permute(itc, [1 3 2]); 
@@ -184,7 +184,7 @@ function OutputFiles = Run(sProcess, sInput)
    OutputFiles=bst_process('GetNewFilename',bst_fileparts(Filepath),'timefreq_psd');
    FileMat.ChannelFlag=DataStruct.ChannelFlag;
    FileMat.TF=itc;
-   FileMat.Comment= sprintf('PSD: %d/%d ms %s',sum(Nwin),WindowLength*(1/sRate)*1000,sProcess.options.condition.Value);
+   FileMat.Comment= sprintf('ITC: %d/%d ms %s',sum(Nwin),WindowLength*(1/sRate)*1000,sProcess.options.condition.Value);
    FileMat.DataType='data';
    FileMat.Time=[0,size(DataStruct.F,2)*(1/sRate)];
    FileMat.Freqs=f;
@@ -227,16 +227,16 @@ function OutputFiles = Run(sProcess, sInput)
 end
 
 %% ===== COMPUTE =====
-function [itc, ang, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, sRate, imagingKernel)
+function [itc, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, imagingKernel)
     
-    [itc,ang,interval,Nwin] = fta_itc(inputData,WindowLength,sRate,imagingKernel);
+    [itc,interval,Nwin] = fta_itc(inputData,WindowLength,imagingKernel);
     bst_report('Info', sProcess, sInput, sprintf('Number of windows used: %d\n',Nwin));
     
 end
 
 %% ===== Computation logic for ITC goes here =====
 
-function [itc,an,f,N] = fta_itc(data,wl,srate,ImagingKernel)
+function [itc,interval,N] = fta_itc(data,wl,ImagingKernel)
     % [itc,an,f] = fta_itc(data,wl,srate)
     % Computes Inter-Trial Coherence on all channels of EEG data over
     % consecutive non-overlapping windows (trials)
@@ -248,8 +248,7 @@ function [itc,an,f,N] = fta_itc(data,wl,srate,ImagingKernel)
     %
     % Outputs:
     % itc = inter-trial coherence (channels x frequency x epochs)
-    % an{ep} = phase (angle in radians) for each trial and frequency within each epoch ep (channels x frequency x trials)
-    % f = frequency vector
+    % interval = time interval points to compute the frequency vector
     %
     % Author: Marco Buiatti, CIMeC (University of Trento, Italy), 2016-2017.
     nep=length(data);
@@ -284,5 +283,5 @@ function [itc,an,f,N] = fta_itc(data,wl,srate,ImagingKernel)
     else
         interval=0:1:((wl-1)/2);
     end
-    f=interval*srate/wl;
+    
 end
