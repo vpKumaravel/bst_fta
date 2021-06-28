@@ -103,7 +103,7 @@ function OutputFiles = Run(sProcess, sInput)
     end
     %check if frequency window is at least 3 frequency bin
     if(PosUpBound-PosLowBound<=3)
-    bst_report('Warning', sProcess, [], 'Frequency window too small!');
+    bst_report('Warning', sProcess, [], 'Frequency window too small: Could lead to potentially unstable result');
         return;
     end
     %determining frequency window
