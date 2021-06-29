@@ -52,6 +52,14 @@ function sProcess = GetDescription()
     sProcess.options.NFR.Comment = ['Normalization Frequency Range ' char(177)];
     sProcess.options.NFR.Type    = 'value';
     sProcess.options.NFR.Value   = {0.3, 'Hz', 2};
+    % === Tagged Frequency Alone
+    sProcess.options.TFA.Comment = 'Power Spectrum @ Tagged Frequency';
+    sProcess.options.TFA.Type    = 'checkbox';
+    sProcess.options.TFA.Value   = 0;
+    % === Baseline or Background Frequency Alone
+    sProcess.options.BLA.Comment = 'Power Spectrum @ Baseline Frequencies';
+    sProcess.options.BLA.Type    = 'checkbox';
+    sProcess.options.BLA.Value   = 0;
     % === Power Law or Scalar Fit
     sProcess.options.CheckPowLaw.Comment = 'Power-law fit, if unchecked scalar fit will be applied';
     sProcess.options.CheckPowLaw.Type    = 'checkbox';
@@ -77,14 +85,16 @@ function OutputFiles = Run(sProcess, sInput)
     np=ones(size(DataMat,1),1);
     TaggedF=sProcess.options.TaggedF.Value{1};    
     width=sProcess.options.NFR.Value{1};
+    isTF = sProcess.options.TFA.Value;
+    isBL = sProcess.options.BLA.Value;
     %check if TF is positive
     if(TaggedF<=0)
-    bst_report('Error', sProcess, [], 'Selected Negative Tagged Frequency! Tagged Frequency must be positive');
+        bst_report('Error', sProcess, sInput, 'Selected Negative Tagged Frequency! Tagged Frequency must be positive');
         return;
     end
     %check if TF is less than the maximum frequency value
     if(TaggedF>DataStruct.Freqs(size(DataStruct.Freqs,2)))
-    bst_report('Error', sProcess, [], 'Tagged Frequency greater than maximum data frequency');
+        bst_report('Error', sProcess, sInput, 'Tagged Frequency greater than maximum data frequency');
         return;
     end
     %finding Tagged F position
@@ -96,14 +106,14 @@ function OutputFiles = Run(sProcess, sInput)
         PosLowBound=2;%Because in position 1 we have freq 0 than in log=-inf and turns polyfit in NaN
     end
     
-    if(TaggedF+width)<=max(DataStruct.Freqs);
+    if(TaggedF+width)<=max(DataStruct.Freqs)
         [~, PosUpBound]=min(abs(DataStruct.Freqs-(TaggedF+width)));
     else
         [~, PosUpBound]=size(DataStruct.Freqs, 2);
     end
     %check if frequency window is at least 3 frequency bin
     if(PosUpBound-PosLowBound<=3)
-        bst_report('Warning', sProcess, [], 'Frequency window too small: Could lead to potentially unstable result');
+        bst_report('Warning', sProcess, sInput, 'Frequency window too small: Could lead to potentially unstable result');
     end
     %determining frequency window
     fitpoints=[PosLowBound:PosTF-1 PosTF+1:PosUpBound];
@@ -119,6 +129,7 @@ function OutputFiles = Run(sProcess, sInput)
             psbl(el)  =mean(DataMat(el,fitpoints));
         end
     end
+    
     %Creating output file
     if strcmp(DataStruct.DataType,'data')
         DataOut= db_template('datamat');
@@ -140,13 +151,14 @@ function OutputFiles = Run(sProcess, sInput)
         Filepath=strtok(Filepath, '|');%path to the 'result' file, Rpath=path to the sensor file
         OutputFiles=bst_process('GetNewFilename',bst_fileparts(Filepath),'results_concat');
         DataOut.DataFile=Filepath;
-        DataOut.Function=DataStruct.Function;
         DataOut.HeadModelFile=DataStruct.HeadModelFile;
         DataOut.SurfaceFile=DataStruct.SurfaceFile;
-        DataOut.nAvg=DataStruct.nAvg;
-        DataOut.Whitener=DataStruct.Whitener;
-        DataOut.GoodChannel=DataStruct.GoodChannel;
+        DataOut.nAvg=DataStruct.nAvg; 
+        if(isfield(DataStruct, 'Whitener')); DataOut.Whitener=DataStruct.Whitener; end
+        if(isfield(DataStruct, 'Function')); DataOut.Function=DataStruct.Function; end
+        if(isfield(DataStruct, 'GoodChannel')); DataOut.GoodChannel=DataStruct.GoodChannel; end
     end
+    
     % ===== SAVE FILE =====  
     DataOut.ChannelFlag=DataStruct.ChannelFlag;
     DataOut.Comment=sprintf('NP %0.2f Hz',TaggedF);
@@ -161,20 +173,20 @@ function OutputFiles = Run(sProcess, sInput)
     
     % Code for creating 2 other output files - one for tag frequency alone
     % and another for baseline or background frequencies alone
-    if(1)
+    if(isTF)
         %Creating output file for TF
         if strcmp(DataStruct.DataType,'data')
             DataOut= db_template('datamat');
-            DataOut.F=zeros(size(DataMat,1),1);
-            DataOut.F(:,1) = pstf;
-            DataOut.F(:,2) = pstf;
+            DataOut.F=zeros(size(DataMat,1),2);
+            DataOut.F(:,1)=pstf;
+            DataOut.F(:,2)=pstf;
             DataOut.Device=DataStruct.Device;
             OutputFiles=bst_process('GetNewFilename',bst_fileparts(sInput.FileName),'data_concat');
         elseif strcmp(DataStruct.DataType,'results')
             DataOut= db_template('resultsmat');
-            DataOut.ImageGridAmp = zeros(size(DataMat,1),1);
-            DataOut.ImageGridAmp(:,1) = pstf;
-            DataOut.ImageGridAmp(:,2) = pstf;
+            DataOut.ImageGridAmp=zeros(size(DataMat,1),2);
+            DataOut.ImageGridAmp(:,1)=pstf;
+            DataOut.ImageGridAmp(:,2)=pstf;
             %extracting result path
             [ ~ ,Filepath]=strtok(sInput.DataFile, '|');%removing "link" text from string
             [Rpath,Filepath]=strtok(Filepath, '|');%storing the right filepath of the result
@@ -183,13 +195,14 @@ function OutputFiles = Run(sProcess, sInput)
             Filepath=strtok(Filepath, '|');%path to the 'result' file, Rpath=path to the sensor file
             OutputFiles=bst_process('GetNewFilename',bst_fileparts(Filepath),'results_concat');
             DataOut.DataFile=Filepath;
-            DataOut.Function=DataStruct.Function;
             DataOut.HeadModelFile=DataStruct.HeadModelFile;
             DataOut.SurfaceFile=DataStruct.SurfaceFile;
             DataOut.nAvg=DataStruct.nAvg;
-            DataOut.Whitener=DataStruct.Whitener;
-            DataOut.GoodChannel=DataStruct.GoodChannel;
+            if(isfield(DataStruct, 'Whitener')); DataOut.Whitener=DataStruct.Whitener; end
+            if(isfield(DataStruct, 'Function')); DataOut.Function=DataStruct.Function; end
+            if(isfield(DataStruct, 'GoodChannel')); DataOut.GoodChannel=DataStruct.GoodChannel; end
         end
+        
         % ===== SAVE FILE =====
         DataOut.ChannelFlag=DataStruct.ChannelFlag;
         DataOut.Comment=sprintf('TF %0.2f Hz',TaggedF);
@@ -201,18 +214,20 @@ function OutputFiles = Run(sProcess, sInput)
         save(OutputFiles,'-struct','DataOut');
         % Reference OutputFile in the database:
         db_add_data(sInput.iStudy, OutputFiles,DataOut);
-        
+    end
+    
+    if(isBL)
         %Creating output file for BL
         if strcmp(DataStruct.DataType,'data')
             DataOut= db_template('datamat');
-            DataOut.F=zeros(size(DataMat,1),1);
+            DataOut.F=zeros(size(DataMat,1),2);
             DataOut.F(:,1) = psbl;
             DataOut.F(:,2) = psbl;
             DataOut.Device=DataStruct.Device;
             OutputFiles=bst_process('GetNewFilename',bst_fileparts(sInput.FileName),'data_concat');
         elseif strcmp(DataStruct.DataType,'results')
             DataOut= db_template('resultsmat');
-            DataOut.ImageGridAmp = zeros(size(DataMat,1),1);
+            DataOut.ImageGridAmp=zeros(size(DataMat,1),2);
             DataOut.ImageGridAmp(:,1) = psbl;
             DataOut.ImageGridAmp(:,2) = psbl;
             %extracting result path
@@ -223,12 +238,12 @@ function OutputFiles = Run(sProcess, sInput)
             Filepath=strtok(Filepath, '|');%path to the 'result' file, Rpath=path to the sensor file
             OutputFiles=bst_process('GetNewFilename',bst_fileparts(Filepath),'results_concat');
             DataOut.DataFile=Filepath;
-            DataOut.Function=DataStruct.Function;
             DataOut.HeadModelFile=DataStruct.HeadModelFile;
             DataOut.SurfaceFile=DataStruct.SurfaceFile;
             DataOut.nAvg=DataStruct.nAvg;
-            DataOut.Whitener=DataStruct.Whitener;
-            DataOut.GoodChannel=DataStruct.GoodChannel;
+            if(isfield(DataStruct, 'Whitener')); DataOut.Whitener=DataStruct.Whitener; end
+            if(isfield(DataStruct, 'Function')); DataOut.Function=DataStruct.Function; end
+            if(isfield(DataStruct, 'GoodChannel')); DataOut.GoodChannel=DataStruct.GoodChannel; end
         end
         % ===== SAVE FILE =====
         DataOut.ChannelFlag=DataStruct.ChannelFlag;
