@@ -202,7 +202,7 @@ function OutputFiles = Run(sProcess, sInput)
        FileMat.RowNames = {ChannelMat.Channel(iChannels).Name};
    end
    
-   FileMat.Measure='power';
+   FileMat.Measure='other';
    FileMat.Method='psd';
    FileMat.DataFile=sInput.FileName;
    FileMat.nAvg=DataStruct.nAvg;
