@@ -1,5 +1,5 @@
-function varargout = process_eps_fta(varargin )
-% process_eps_fta: Computes the PSD of Frequency-Tagged data segments marked by "Boundary" (or anyother user-defined label)
+function varargout = process_cps_fta(varargin )
+% process_cps_fta: Computes the PSD of Frequency-Tagged data segments marked by "Boundary" (or anyother user-defined label)
 %                   in a moving-window fashion, and average them.
 %            
 %
@@ -29,7 +29,7 @@ end
 function sProcess = GetDescription()
     % Description the process
     sProcess.Comment     = 'Compute Power Spectrum';
-    sProcess.FileTag     = 'fta_ps_aw';
+    sProcess.FileTag     = 'fta_cps';
     sProcess.Category    = 'File';
     sProcess.SubGroup    = 'Frequency Tagging Analysis';
     sProcess.Index       = 600;
@@ -63,12 +63,6 @@ function sProcess = GetDescription()
     sProcess.options.windowlen.Type    = 'value';
     sProcess.options.windowlen.Value   = {10, 'seconds', 3};
     
-    % === Time points duration
-    sProcess.options.tpduration.Comment = 'Time point duration';
-    sProcess.options.tpduration.Type    = 'value';
-    sProcess.options.tpduration.Value   = {0.004, 'seconds', 3};
-    sProcess.options.tpduration.Hidden  = 1; % Not required
-    
     % === Upper bound overlap framing
     sProcess.options.Uepochoverlap.Comment = 'Max. Overlap Factor';
     sProcess.options.Uepochoverlap.Type    = 'value';
@@ -90,8 +84,6 @@ function sProcess = GetDescription()
     sProcess.options.minlengthzeropad.Type        = 'value';
     sProcess.options.minlengthzeropad.Value       = {5, 'seconds', 1};
     sProcess.options.minlengthzeropad.Class       = 'cZeroPad';
-    
-    
     
 end
 %% ===== FORMAT COMMENT =====

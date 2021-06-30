@@ -1,5 +1,5 @@
-function varargout = process_itc_fta(varargin )
-% process_itc_fta: Computes Inter-Trial Coherence on all channels of EEG data over
+function varargout = process_citc_fta(varargin )
+% process_citc_fta: Computes Inter-Trial Coherence on all channels of EEG data over
 % consecutive non-overlapping windows (trials)
 %
 % @=============================================================================
@@ -29,7 +29,7 @@ end
 function sProcess = GetDescription()
     % Description the process
     sProcess.Comment     = 'Inter-Trial Phase Coherence';
-    sProcess.FileTag     = 'itc';
+    sProcess.FileTag     = 'citc';
     sProcess.Category    = 'File';
     sProcess.SubGroup    = 'Frequency Tagging Analysis';
     sProcess.Index       = 603;
