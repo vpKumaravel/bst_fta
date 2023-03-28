@@ -28,7 +28,7 @@ end
 %% ===== GET DESCRIPTION =====
 function sProcess = GetDescription()
     % Description the process
-    sProcess.Comment     = 'Inter-Trial Phase Coherence';
+    sProcess.Comment     = 'Compute Inter-Trial Phase Coherence';
     sProcess.FileTag     = 'citc';
     sProcess.Category    = 'File';
     sProcess.SubGroup    = 'Frequency Tagging Analysis';
@@ -48,13 +48,8 @@ function sProcess = GetDescription()
     sProcess.options.sensortypes.InputTypes = {'data', 'results'};
     sProcess.options.sensortypes.Group   = 'input';
     
-    % Options: condition
-    sProcess.options.condition.Comment = 'Condition';
-    sProcess.options.condition.Type    = 'text';
-    sProcess.options.condition.Value   = 'Power';
-    
     % Options: Boundary event Label
-    sProcess.options.BL.Comment = 'Boundary Event Label';
+    sProcess.options.BL.Comment = 'Event Label';
     sProcess.options.BL.Type    = 'text';
     sProcess.options.BL.Value   = 'boundary';
 
@@ -184,7 +179,7 @@ function OutputFiles = Run(sProcess, sInput)
    OutputFiles=bst_process('GetNewFilename',bst_fileparts(Filepath),'timefreq_psd');
    FileMat.ChannelFlag=DataStruct.ChannelFlag;
    FileMat.TF=itc;
-   FileMat.Comment= sprintf('ITC: %d/%d ms %s',sum(Nwin),WindowLength*(1/sRate)*1000,sProcess.options.condition.Value);
+   FileMat.Comment= sprintf('ITC: %d/%d ms %s',sum(Nwin),WindowLength*(1/sRate)*1000,'Phase');
    FileMat.DataType='data';
    FileMat.Time=[0,size(DataStruct.F,2)*(1/sRate)];
    FileMat.Freqs=f;
@@ -275,7 +270,8 @@ function [itc,interval,N] = fta_itc(data,wl,ImagingKernel)
     end
     
     itc=((abs(mean(exp(1i*an),3)).^2)*N - 1)/(N-1);
-
+    
+    prefAngle = ((angle(mean(exp(1i*an),3)).^2)*N - 1)/(N-1);
 
 
     if floor(wl/2)==wl/2

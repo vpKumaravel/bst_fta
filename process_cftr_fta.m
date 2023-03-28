@@ -32,7 +32,7 @@ end
 %% ===== GET DESCRIPTION =====
 function sProcess = GetDescription()
     % Description the process
-    sProcess.Comment     = 'Frequency Tag Peak';
+    sProcess.Comment     = 'Compute Frequency Tagged Response';
     sProcess.FileTag     = 'cFTR';
     sProcess.Category    = 'File';
     sProcess.SubGroup    = 'Frequency Tagging Analysis';

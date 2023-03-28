@@ -48,13 +48,9 @@ function sProcess = GetDescription()
     sProcess.options.sensortypes.InputTypes = {'data', 'results'};
     sProcess.options.sensortypes.Group   = 'input';
     
-    % Options: condition
-    sProcess.options.condition.Comment = 'Condition';
-    sProcess.options.condition.Type    = 'text';
-    sProcess.options.condition.Value   = 'Power';
-    
+
     % Options: Boundary event Label
-    sProcess.options.BL.Comment = 'Boundary Event Label';
+    sProcess.options.BL.Comment = 'Event Label';
     sProcess.options.BL.Type    = 'text';
     sProcess.options.BL.Value   = 'boundary';
     
@@ -250,7 +246,7 @@ function OutputFiles = Run(sProcess, sInput)
    OutputFiles=bst_process('GetNewFilename',bst_fileparts(Filepath),'timefreq_psd');
    FileMat.ChannelFlag=DataStruct.ChannelFlag;
    FileMat.TF=ps;
-   FileMat.Comment= sprintf('PSD: %d/%d ms %s',sum(Nwin),WindowLength*(1/sRate)*1000,sProcess.options.condition.Value);
+   FileMat.Comment= sprintf('PSD: %d/%d ms %s',sum(Nwin),WindowLength*(1/sRate)*1000,'Power');
    FileMat.DataType='data';
    FileMat.Time=[0,size(DataStruct.F,2)*(1/sRate)];
    FileMat.Freqs=f;
