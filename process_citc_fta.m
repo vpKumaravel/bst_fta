@@ -269,9 +269,7 @@ function [itc,interval,N] = fta_itc(data,wl,ImagingKernel)
         bst_progress('inc',  ceil(1/nep*100));
     end
     
-    itc=((abs(mean(exp(1i*an),3)).^2)*N - 1)/(N-1);
-    
-    prefAngle = ((angle(mean(exp(1i*an),3)).^2)*N - 1)/(N-1);
+    itc=abs(mean(exp(1i*an),3));
 
 
     if floor(wl/2)==wl/2
