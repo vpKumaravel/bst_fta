@@ -198,11 +198,12 @@ function OutputFiles = Run(sProcess, sInput)
    end
    
    FileMat.Measure='other';
-   FileMat.Method='psd';
+   FileMat.Method='ITC';
    FileMat.DataFile=sInput.FileName;
    FileMat.nAvg=DataStruct.nAvg;
    FileMat.Options=sProcess.options;
    FileMat.History=DataStruct.History;
+   FileMat.DisplayUnits = 'No Units';
    if(~isempty(RDataMat))
        FileMat.DataType='results';
        FileMat.ChannelFlag=RDataMat.ChannelFlag;
