@@ -1,6 +1,6 @@
 function varargout = process_cps_fta(varargin )
 % process_cps_fta: Computes the PSD of Frequency-Tagged data segments marked by "Boundary" (or anyother user-defined label)
-%                   in a moving-window fashion, and average them.
+%                   in a moving-window fashion, and averages them.
 %            
 %
 % @=============================================================================
@@ -123,22 +123,21 @@ function OutputFiles = Run(sProcess, sInput)
     end
     
     %---Extracting data Boundaries
-    if(~isempty(sProcess.options.BL.Value))
-        user_event = sProcess.options.BL.Value;
-    end
     
-    % Please optimize this code - this looping isn't necessary!
-    [~, NEvents]=size(DataStruct.Events);
-    isBound = 1;
-    for BoundPos=1:NEvents
-        if strcmp(user_event,DataStruct.Events(BoundPos).label)
-            break
-        elseif BoundPos==NEvents
-            strMsg = ['No ' user_event ' event found in the data, processing all data points.'];
-            bst_report('Warning', sProcess, [], strMsg);
-            isBound = 0;
-        end
+    user_event = sProcess.options.BL.Value;
+    
+    % Find the index of user_event in DataStruct.Events
+    BoundPos = find(strcmp(user_event, {DataStruct.Events.label}), 1);
+    
+    % Check if user_event was not found
+    if isempty(BoundPos)
+        strMsg = ['No ''' user_event ''' event found in the data, processing all data points.'];
+        bst_report('Warning', sProcess, [], strMsg);
+        isBound = 0;
+    else
+        isBound = 1;
     end
+
     
     % Segment the data
     if(isBound)
@@ -300,6 +299,63 @@ end
 %% ===== PSD Adaptive Windowing Logic goes here =====
 
 function [ps, interval, nWin] = fta_ps(inputData, winLen, uppBound, lowBound, psdKernel, imagingKernel)
+
+    [ChNumber, ~]= size(inputData{1});
+    nWin = zeros(1,length(inputData));
+
+    w = winLen*(sum(psdKernel.^2));	%window squared and summed
+
+    ap = 0;
+    for iSeg = 1:length(inputData)
+        DataLength = size(inputData{iSeg}(1,:),2);
+        if DataLength-winLen < floor(winLen*(1-uppBound))
+            Nmax = 1; % Set to 1 for non-overlapping windows
+            winStart = 0;
+        else
+            if uppBound == 0 && lowBound == 0
+                % Set default values when both uppBound and lowBound are zero
+                Nmax = 1; % Set to 1 for non-overlapping windows
+                winStart = 0;
+            else
+                Nmax = max(1, ceil(DataLength / (winLen * max(eps, lowBound))));
+                winStart = floor((DataLength - winLen) / max(1, (Nmax - 2)));
+            end
+        end
+
+
+        nWin(iSeg)=max(1, nWin(iSeg)); % number of consecutive full windows
+
+        ap_loc=0; %average power
+        for i=1:nWin(iSeg)
+            for ch = 1:ChNumber
+                wd(ch,:)=psdKernel.*inputData{iSeg}(ch,(i-1)*winStart+1:(i-1)*winStart+winLen);
+            end
+            fwd = fft(wd,[],2);
+            if ~isempty(imagingKernel)
+                fwd = imagingKernel * fwd; % computing the source psd
+            end
+            ap_loc = ap_loc + abs(fwd).^2;
+        end
+        ap = ap + ap_loc; % output average power
+        bst_progress('inc',  ceil(1/length(inputData)*100));
+    end
+
+    n=sum(nWin);
+    
+    if mod(winLen, 2) == 0
+        ps(:,1) = ap(:,1) / (w * n);
+        ps(:, 2:winLen/2) = (ap(:, 2:winLen/2) + ap(:, winLen:-1:(winLen/2) + 2)) / (w * n);
+        ps(:, (winLen/2) + 1) = ap(:, (winLen/2) + 1) / (w * n);
+        interval = 0:1:(winLen/2);
+    else
+        ps(:,1) = ap(:,1) / (w * n);
+        ps(:, 2:ceil(winLen/2)) = (ap(:, 2:ceil(winLen/2)) + ap(:, winLen:-1:ceil(winLen/2) + 1)) / (w * n);
+        ps(:, ceil(winLen/2) + 1) = ap(:, ceil(winLen/2) + 1) / (w * n);
+        interval = 0:1:(ceil(winLen/2));
+    end
+end
+
+function [ps, interval, nWin] = fta_ps_old(inputData, winLen, uppBound, lowBound, psdKernel, imagingKernel)
 
     [ChNumber, ~]= size(inputData{1});
     nWin = zeros(1,length(inputData));
