@@ -118,25 +118,28 @@ function OutputFiles = Run(sProcess, sInput)
         end
     end
     
-    % Segment the data
-    if(isBound)
+     % Collect the data relevant to the Event label
+     if(isBound)
         if isfield(DataStruct.Events, 'samples') % check with Marco
             seg_intervals=DataStruct.Events(BoundPos).samples;
         else
             seg_intervals=round(DataStruct.Events(BoundPos).times * sRate);
         end
-        [~,nSegments]=size(seg_intervals);
+        nSegments = size(seg_intervals, 2);
+        segDataStruct = cell(1, size(seg_intervals, 2) - 1);
 
         for iSeg=1:nSegments-1
-                segDataStruct{iSeg}=inputData(1:size(inputData,1), (seg_intervals(iSeg)+1):(seg_intervals(iSeg+1)));
+                start_idx = seg_intervals(1, iSeg);
+                end_idx = seg_intervals(1, iSeg + 1) - 1;
+                segDataStruct{iSeg}=inputData(:, start_idx:end_idx);
         end
         
         if(seg_intervals(1) ~= 1)
-             segDataStruct{length(segDataStruct)+1}=inputData(1:size(inputData,1), 1:seg_intervals(1));
+             segDataStruct{length(segDataStruct)+1}=inputData(:, 1:seg_intervals(1));
         end
         
         if(seg_intervals(end) ~= size(inputData,2))
-            segDataStruct{length(segDataStruct)+1}=inputData(1:size(inputData,1), seg_intervals(end):size(inputData,2));
+            segDataStruct{length(segDataStruct)+1}=inputData(:, seg_intervals(1, end):size(inputData,2));
         end
         
         inputData = segDataStruct; % override inputData in case of boundary segments
