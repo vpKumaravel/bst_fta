@@ -161,7 +161,7 @@ function OutputFiles = Run(sProcess, sInput)
         end
         
         if(seg_intervals(end) ~= size(inputData,2))
-            segDataStruct{length(segDataStruct)+1}=inputData(1:size(inputData,1), seg_intervals(end):size(inputData,2));
+            segDataStruct{length(segDataStruct)+1}=inputData(:, seg_intervals(1, end):size(inputData,2));
         end
         
         inputData = segDataStruct; % override inputData in case of boundary segments
