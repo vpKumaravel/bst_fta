@@ -1,4 +1,4 @@
-function varargout = process_cps_fta(varargin )
+function varargout = process_ceps_fta(varargin )
 % process_cps_fta: Computes the PSD of Frequency-Tagged data segments 
 %                   marked by "Boundary" (or anyother user-defined label)
 %                   in a moving-window fashion, and averages them.
@@ -29,7 +29,7 @@ end
 %% ===== GET DESCRIPTION =====
 function sProcess = GetDescription()
     % Description the process
-    sProcess.Comment     = 'Compute Power Spectrum';
+    sProcess.Comment     = 'Compute Evoked Power Spectrum';
     sProcess.FileTag     = 'fta_cps';
     sProcess.Category    = 'File';
     sProcess.SubGroup    = 'Frequency Tagging Analysis';
@@ -58,12 +58,17 @@ function sProcess = GetDescription()
     % === Time window
     sProcess.options.windowlen.Comment = 'Window Length';
     sProcess.options.windowlen.Type    = 'value';
-    sProcess.options.windowlen.Value   = {10, 'seconds', 1};
+    sProcess.options.windowlen.Value   = {10, 'seconds', 3};
     
-    % === Overlap Factor
-    sProcess.options.overlapFactor.Comment = 'Overlap Factor';
-    sProcess.options.overlapFactor.Type    = 'value';
-    sProcess.options.overlapFactor.Value   = {0.5, '', 2};
+    % === Upper bound overlap framing
+    sProcess.options.Uepochoverlap.Comment = 'Max. Overlap Factor';
+    sProcess.options.Uepochoverlap.Type    = 'value';
+    sProcess.options.Uepochoverlap.Value   = {75, '%', 0};
+    
+    % === Lower bound overlap framing
+    sProcess.options.Lepochoverlap.Comment = 'Min. Overlap Factor';
+    sProcess.options.Lepochoverlap.Type    = 'value';
+    sProcess.options.Lepochoverlap.Value   = {50, '%', 0};
     
     % === Zero-Padding Checkbox
     sProcess.options.isZeroPad.Comment     = 'Zero-Padding (in case of shorter epochs)';
@@ -72,7 +77,7 @@ function sProcess = GetDescription()
     sProcess.options.isZeroPad.Controller  = 'cZeroPad';
     
     % === Zero-Padding
-    sProcess.options.minlengthzeropad.Comment     = 'An epoch however should contain at least ';
+    sProcess.options.minlengthzeropad.Comment     = 'Minimum Epoch Length';
     sProcess.options.minlengthzeropad.Type        = 'value';
     sProcess.options.minlengthzeropad.Value       = {5, 'seconds', 1};
     sProcess.options.minlengthzeropad.Class       = 'cZeroPad';
@@ -124,7 +129,7 @@ function OutputFiles = Run(sProcess, sInput)
     
     % Find the index of user_event in DataStruct.Events
     BoundPos = find(strcmp(user_event, {DataStruct.Events.label}), 1);
-    
+%     BoundPos =[];
     % Check if user_event was not found
     if isempty(BoundPos)
         strMsg = ['No ''' user_event ''' event found in the data, processing all data points.'];
@@ -134,9 +139,10 @@ function OutputFiles = Run(sProcess, sInput)
         isBound = 1;
     end
 
+    
     % Collect the data relevant to the Event label  
     if(isBound)
-        if isfield(DataStruct.Events, 'samples')
+        if isfield(DataStruct.Events, 'samples') % check with Marco
             seg_intervals=DataStruct.Events(BoundPos).samples;
         else
             seg_intervals=round(DataStruct.Events(BoundPos).times * sRate);
@@ -186,13 +192,12 @@ function OutputFiles = Run(sProcess, sInput)
    inputData_copy = inputData; % use the copy to perform zero-padding
    
    
-   if (isZeroPad)
-       minLength =  min_length_zp{1}*sRate;
+   if (isZeroPad) 
        inputData_pad = [];
        count = 1; % Count of zero-padded (new) segments
        for iSeg=1:length(inputData_copy)
            [ChannelNumber, Datasize]= size(inputData_copy{iSeg});
-           if(Datasize < WindowLength && Datasize >= minLength && Datasize <= WindowLength)
+           if(Datasize < WindowLength && Datasize >= min_length_zp{1}*sRate && Datasize <= WindowLength)
                inputData_pad{count} = [inputData_copy{iSeg} zeros(ChannelNumber, WindowLength - size(inputData_copy{iSeg},2))]; %Zero-padding
                strMsg = ['Data Segment : ' num2str(iSeg) ' is zero-padded'];
                bst_report('Warning', sProcess, [], strMsg);
@@ -202,8 +207,6 @@ function OutputFiles = Run(sProcess, sInput)
            count = count + 1;
        end
        inputData = inputData_pad;
-   else
-       minLength =  0;
    end
    
    % Logic to check if none of the segments meet the window length criteria
@@ -218,33 +221,28 @@ function OutputFiles = Run(sProcess, sInput)
        bst_report('Error', sProcess, [], strMsg);
        return;
    end
-
+   
    % Taper is Square
-   psdKernel   = ones(1,WindowLength)/WindowLength;
-
-   % overlap factor
-   if ~(sProcess.options.overlapFactor.Value{1} >= 0 && sProcess.options.overlapFactor.Value{1} <= 1)
-       bst_report('Warning', sProcess, sProcess.options.overlapFactor.Value{1}, 'The overlap factor should be between 0 and 1. Using a default value of 0.5');
-       sProcess.options.overlapFactor.Value{1}=0.5;
+   psdKernel   = ones(1,WindowLength)/WindowLength; 
+   
+      %lower limit<upper limit
+   if (sProcess.options.Lepochoverlap.Value{1}>sProcess.options.Uepochoverlap.Value{1})
+       bst_report('Warning', sProcess, sProcess.options.Lepochoverlap.Value{1}, 'Upper overlap bound lower than lower overlap bound, automatic switch');
+        temp=sProcess.options.Lepochoverlap.Value{1};
+        sProcess.options.Lepochoverlap.Value{1}=sProcess.options.Uepochoverlap.Value{1};
+        sProcess.options.Uepochoverlap.Value{1}=temp;
    end
-
-  overlapFactor=sProcess.options.overlapFactor.Value{1};
-
-  % Collecting all input variables into a Struct
-  inputStruct.data = inputData;
-  inputStruct.windowLength = WindowLength;
-  inputStruct.sRate = sRate;
-  inputStruct.overlapFactor = overlapFactor;
-  inputStruct.isPadding = isZeroPad;
-  inputStruct.minLength = minLength;
-  inputStruct.psdKernel = psdKernel;
-  inputStruct.imagingKernel = imagingKernel;
-
-   [ps, f, Nwin]=Compute(sProcess,sInput, inputStruct);
+   
+  %make the code easier to read
+  UpperBound=sProcess.options.Uepochoverlap.Value{1}/100;
+  LowerBound=sProcess.options.Lepochoverlap.Value{1}/100;
+   
+  [ps, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, UpperBound, LowerBound, psdKernel, imagingKernel);
   
    %---Power Spectrum---
    ps = permute(ps, [1 3 2]); 
    %Output file creation
+   f=interval*sRate/WindowLength;
    [ChannelNumber,~ ,~]=size(ps);
    Rows=1:1:ChannelNumber;
    FileMat = db_template('timefreqmat');
@@ -294,17 +292,96 @@ function OutputFiles = Run(sProcess, sInput)
 end
 
 %% ===== COMPUTE =====
-function [ps, f, Nwin]=Compute(sProcess,sInput,inputStruct)
-
-    data = inputStruct.data;
-    windowLength = inputStruct.windowLength;
-    sRate = inputStruct.sRate;
-    overlapFactor = inputStruct.overlapFactor;
-    isPadding = inputStruct.isPadding;
-    minLength = inputStruct.minLength;
-
-    [ps, f, Nwin] = fta_power_spectrum(data, windowLength, ...
-                                                sRate,overlapFactor, isPadding, minLength);
+function [ps, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, UpperBound, LowerBound, psdKernel, imagingKernel)
+    
+    [ps, interval, Nwin] = fta_ps(inputData, WindowLength, UpperBound, LowerBound, psdKernel, imagingKernel);    
     bst_report('Info', sProcess, sInput, sprintf('Number of windows used: %d\n',Nwin));
     
+end
+
+
+%% ===== PSD Adaptive Windowing Logic goes here =====
+
+function [ps, interval, nWin] = fta_ps(inputData, winLen, uppBound, lowBound, psdKernel, imagingKernel)
+
+    [ChNumber, ~]= size(inputData{1});
+    nWin = zeros(1,length(inputData));
+
+    w = winLen*(sum(psdKernel.^2));	%window squared and summed
+%% EPS %%
+    tr = 0;
+    for iSeg = 1:length(inputData)
+        DataLength = size(inputData{iSeg}(1,:),2);
+        nWin(iSeg)=floor(DataLength/winLen);
+        for i=1:nWin(iSeg)
+            tr=tr+1;
+            for ch = 1:ChNumber
+                wd(ch,:,tr)=psdKernel.*inputData{iSeg}(ch,(i-1)*winLen+1:(i*winLen));
+            end
+        end
+        bst_progress('inc',  ceil(1/length(inputData)*100));
+    end
+    wd_mean=mean(wd,3);
+    fwd_mean=fft(wd_mean,[],2);
+    if ~isempty(imagingKernel)
+        fwd_mean = imagingKernel * fwd_mean; % computing the source psd
+    end
+    ap=abs(fwd_mean).^2;
+    n=1;
+    
+    if mod(winLen, 2) == 0
+        ps(:,1) = ap(:,1) / (w * n);
+        ps(:, 2:winLen/2) = 2*ap(:, 2:winLen/2) / (w * n);
+        ps(:, (winLen/2) + 1) = ap(:, (winLen/2) + 1) / (w * n);
+        interval = 0:1:(winLen/2);
+    else
+        ps(:,1) = ap(:,1) / (w * n);
+        ps(:, 2:ceil(winLen/2)) = 2*ap(:, 2:ceil(winLen/2)) / (w * n);
+        ps(:, ceil(winLen/2) + 1) = ap(:, ceil(winLen/2) + 1) / (w * n);
+        interval = 0:1:(ceil(winLen/2));
+    end
+end
+
+function [ps, interval, nWin] = fta_ps_old(inputData, winLen, uppBound, lowBound, psdKernel, imagingKernel)
+
+    [ChNumber, ~]= size(inputData{1});
+    nWin = zeros(1,length(inputData));
+
+    w = winLen*(sum(psdKernel.^2));	%window squared and summed
+
+    ap = 0;
+    for iSeg = 1:length(inputData)
+        DataLength = size(inputData{iSeg}(1,:),2);
+        if DataLength-winLen<floor(winLen*(1-uppBound))  % No overlapping if the data length is lesser than
+            DataLength=winLen;
+            Nmax=ceil(DataLength/(winLen*lowBound)); % max number of consecutive HALF windows (non-overlapping if l is multiple of wl/2)
+            winStart=0;
+        else
+            Nmax=ceil(DataLength/(winLen*lowBound)); % max number of consecutive HALF windows (non-overlapping if l is multiple of wl/2)
+            winStart=floor((DataLength-winLen)/(Nmax-2)); % step
+        end
+
+        nWin(iSeg)=Nmax-1; % number of consecutive full windows
+
+        ap_loc=0; %average power
+        for i=1:nWin(iSeg)
+            for ch = 1:ChNumber
+                wd(ch,:)=psdKernel.*inputData{iSeg}(ch,(i-1)*winStart+1:(i-1)*winStart+winLen);
+            end
+            fwd = fft(wd,[],2);
+            if ~isempty(imagingKernel)
+                fwd = imagingKernel * fwd; % computing the source psd
+            end
+            ap_loc = ap_loc + abs(fwd).^2;
+        end
+        ap = ap + ap_loc; % output average power
+        bst_progress('inc',  ceil(1/length(inputData)*100));
+    end
+
+    n=sum(nWin);
+    
+    ps(:,1)=ap(:,1)/(w*n);
+    ps(:,2:winLen/2)=(ap(:,2:winLen/2)+ap(:,winLen:-1:winLen/2 +2))/(w*n);
+    ps(:,winLen/2 +1)=ap(:,winLen/2 +1)/(w*n);
+    interval=0:1:(winLen/2);
 end
