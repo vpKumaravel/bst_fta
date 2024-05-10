@@ -220,7 +220,7 @@ function OutputFiles = Run(sProcess, sInput)
    end
 
    % Taper is Square
-   psdKernel   = ones(1,WindowLength)/WindowLength;
+%    psdKernel   = ones(1,WindowLength)/WindowLength;
 
    % overlap factor
    if ~(sProcess.options.overlapFactor.Value{1} >= 0 && sProcess.options.overlapFactor.Value{1} <= 1)
@@ -237,7 +237,7 @@ function OutputFiles = Run(sProcess, sInput)
   inputStruct.overlapFactor = overlapFactor;
   inputStruct.isPadding = isZeroPad;
   inputStruct.minLength = minLength;
-  inputStruct.psdKernel = psdKernel;
+%   inputStruct.psdKernel = psdKernel;
   inputStruct.imagingKernel = imagingKernel;
 
    [ps, f, Nwin]=Compute(sProcess,sInput, inputStruct);
@@ -302,9 +302,13 @@ function [ps, f, Nwin]=Compute(sProcess,sInput,inputStruct)
     overlapFactor = inputStruct.overlapFactor;
     isPadding = inputStruct.isPadding;
     minLength = inputStruct.minLength;
+    imagingKernel = inputStruct.imagingKernel;
+    fprintf("The size of the imagingKernel is %d\n", size(imagingKernel,1))
 
     [ps, f, Nwin] = fta_power_spectrum(data, windowLength, ...
-                                                sRate,overlapFactor, isPadding, minLength);
+                                       sRate,overlapFactor, ...
+                                       isPadding, minLength, ...
+                                       imagingKernel);
     bst_report('Info', sProcess, sInput, sprintf('Number of windows used: %d\n',Nwin));
     
 end
