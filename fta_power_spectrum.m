@@ -79,40 +79,73 @@ wss=wl*(sum(w.^2));	%window squared and summed
 % compute ps for each electrode
 overlap_length = round(wl * overlap_factor);
 
-for el=1:size(data{1},1)
-    ap=0;
-    for ep=1:length(data)
-        l=size(data{ep}(el,:),2);
-        n_loc(ep) = floor((l - overlap_length) / (wl - overlap_length));
-        
-        ap_loc=0;
-        % for each window, compute ps and sum to one-epoch ps
-        for i=1:n_loc(ep)
-            start_idx = (i - 1) * (wl - overlap_length) + 1;
-            end_idx = start_idx + wl - 1;
-            wd=w.*data{ep}(el,start_idx:end_idx);
-            fwd = fft(wd); % FFT of wd 
-            % fwd = fft(wd, [], 2); if the above line throws error, please comment that out and uncomment this line
-            if ~isempty(imagingKernel)
-                fwd = imagingKernel * fwd; % Computing the source PSD
-            end
-            ap_loc=ap_loc + abs(fwd).^2;
+ap = 0;
+for ep=1:length(data)
+    l=size(data{ep}(1,:),2);
+    n_loc(ep) = floor((l - overlap_length) / (wl - overlap_length));
+    ap_loc=0;
+    % for each window, compute ps and sum to one-epoch ps
+    for i=1:n_loc(ep)
+        start_idx = (i - 1) * (wl - overlap_length) + 1;
+        end_idx = start_idx + wl - 1;
+        for el=1:size(data{1},1)
+            wd(el, :)=w.*data{ep}(el,start_idx:end_idx);
         end
-        % sum to total ps
-        ap=ap+ap_loc;
+        fwd = fft(wd,[],2);
+        if ~isempty(imagingKernel)
+            fwd = imagingKernel * fwd; % computing the source psd
+        end
+        ap_loc = ap_loc + abs(fwd).^2;
     end
-
-    % normalize ps
-    n=sum(n_loc);
-    ps(el,1)=ap(1)/(wss*n);
-    if floor(wl/2)==wl/2
-        ps(el,2:wl/2)=2*ap(2:wl/2)/(wss*n);
-        ps(el,wl/2 +1)=ap(wl/2 +1)/(wss*n);
-    else
-        ps(el,2:(wl+1)/2)=2*ap(2:(wl+1)/2)/(wss*n);
-    end
-    interval=0:1:(wl/2);
+    ap = ap + ap_loc; % output average power
 end
+
+% normalize ps
+n=sum(n_loc);
+ps(:,1)=ap(:,1)/(wss*n);
+if floor(wl/2)==wl/2
+    ps(:,2:wl/2)=2*ap(:,2:wl/2)/(wss*n);
+    ps(:,wl/2 +1)=ap(wl/2 +1)/(wss*n);
+else
+    ps(:,2:(wl+1)/2)=2*ap(:,2:(wl+1)/2)/(wss*n);
+end
+interval=0:1:(wl/2);
+
+% for el=1:size(data{1},1)
+%     ap=0;
+%     for ep=1:length(data)
+%         l=size(data{ep}(el,:),2);
+%         n_loc(ep) = floor((l - overlap_length) / (wl - overlap_length));
+%         
+%         ap_loc=0;
+%         % for each window, compute ps and sum to one-epoch ps
+%         for i=1:n_loc(ep)
+%             start_idx = (i - 1) * (wl - overlap_length) + 1;
+%             end_idx = start_idx + wl - 1;
+%             wd=w.*data{ep}(el,start_idx:end_idx);
+%             % fwd = fft(wd); % FFT of wd 
+%             fwd = fft(wd, [], 2); % if the above line throws error, please comment that out and uncomment this line
+%             if ~isempty(imagingKernel)
+%                 fwd = imagingKernel * fwd; % Computing the source PSD
+%             end
+%             ap_loc=ap_loc + abs(fwd).^2;
+%         end
+%         % sum to total ps
+%         ap=ap+ap_loc;
+%     end
+% 
+%     % normalize ps
+%     n=sum(n_loc);
+%     ps(el,1)=ap(1)/(wss*n);
+%     if floor(wl/2)==wl/2
+%         ps(el,2:wl/2)=2*ap(2:wl/2)/(wss*n);
+%         ps(el,wl/2 +1)=ap(wl/2 +1)/(wss*n);
+%     else
+%         ps(el,2:(wl+1)/2)=2*ap(2:(wl+1)/2)/(wss*n);
+%     end
+%     interval=0:1:(wl/2);
+% end
+
 f=interval*srate/wl;
 
 for ep=1:length(n_loc)
