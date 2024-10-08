@@ -236,8 +236,12 @@ function OutputFiles = Run(sProcess, sInput)
   %make the code easier to read
   UpperBound=sProcess.options.Uepochoverlap.Value{1}/100;
   LowerBound=sProcess.options.Lepochoverlap.Value{1}/100;
+
+  % find bad channels (if any)
+  badChannels = find(DataStruct.ChannelFlag==-1);
    
-  [ps, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, UpperBound, LowerBound, psdKernel, imagingKernel);
+  [ps, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, ...
+      UpperBound, LowerBound, psdKernel, imagingKernel, badChannels);
   
    %---Power Spectrum---
    ps = permute(ps, [1 3 2]); 
@@ -292,9 +296,11 @@ function OutputFiles = Run(sProcess, sInput)
 end
 
 %% ===== COMPUTE =====
-function [ps, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, UpperBound, LowerBound, psdKernel, imagingKernel)
+function [ps, interval, Nwin]=Compute(sProcess,sInput,inputData, ...
+    WindowLength, UpperBound, LowerBound, psdKernel, imagingKernel, badCh)
     
-    [ps, interval, Nwin] = fta_ps(inputData, WindowLength, UpperBound, LowerBound, psdKernel, imagingKernel);    
+    [ps, interval, Nwin] = fta_ps(inputData, WindowLength, UpperBound, ...
+        LowerBound, psdKernel, imagingKernel, badCh);    
     bst_report('Info', sProcess, sInput, sprintf('Number of windows used: %d\n',Nwin));
     
 end
@@ -302,8 +308,13 @@ end
 
 %% ===== PSD Adaptive Windowing Logic goes here =====
 
-function [ps, interval, nWin] = fta_ps(inputData, winLen, uppBound, lowBound, psdKernel, imagingKernel)
-
+function [ps, interval, nWin] = fta_ps(inputData, winLen, uppBound, lowBound, psdKernel, imagingKernel, badCh)
+ 
+    % imagingKernel(:, badCh) = [];
+    for iSeg = 1:length(inputData)
+        inputData{iSeg}(badCh, :) = []; 
+    end
+    
     [ChNumber, ~]= size(inputData{1});
     nWin = zeros(1,length(inputData));
 
