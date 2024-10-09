@@ -134,6 +134,9 @@ function OutputFiles = Run(sProcess, sInput)
         isBound = 1;
     end
 
+    % find bad channels (if any)
+    badChannels = find(DataStruct.ChannelFlag==-1);
+
     % Collect the data relevant to the Event label  
     if(isBound)
         if isfield(DataStruct.Events, 'samples')
@@ -240,7 +243,7 @@ function OutputFiles = Run(sProcess, sInput)
 %   inputStruct.psdKernel = psdKernel;
   inputStruct.imagingKernel = imagingKernel;
 
-   [ps, f, Nwin]=Compute(sProcess,sInput, inputStruct);
+   [ps, f, Nwin]=Compute(sProcess,sInput, inputStruct, badChannels);
   
    %---Power Spectrum---
    ps = permute(ps, [1 3 2]); 
@@ -294,7 +297,7 @@ function OutputFiles = Run(sProcess, sInput)
 end
 
 %% ===== COMPUTE =====
-function [ps, f, Nwin]=Compute(sProcess,sInput,inputStruct)
+function [ps, f, Nwin]=Compute(sProcess,sInput,inputStruct, badChannels)
 
     data = inputStruct.data;
     windowLength = inputStruct.windowLength;
@@ -308,7 +311,7 @@ function [ps, f, Nwin]=Compute(sProcess,sInput,inputStruct)
     [ps, f, Nwin] = fta_power_spectrum(data, windowLength, ...
                                        sRate,overlapFactor, ...
                                        isPadding, minLength, ...
-                                       imagingKernel);
+                                       imagingKernel, badChannels);
     bst_report('Info', sProcess, sInput, sprintf('Number of windows used: %d\n',Nwin));
     
 end

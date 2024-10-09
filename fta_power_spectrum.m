@@ -1,7 +1,8 @@
 function [ps,f,n]=fta_power_spectrum(data,wl,srate, ...
                                     overlap_factor, ...
                                     isPad,rejLength, ...
-                                    imagingKernel)
+                                    imagingKernel, ...
+                                    badChannels)
 % fta_power_spectrum Computes power spectrum on all channels of EEG data.
 %
 % [ps, f, n] = fta_power_spectrum(data, winLength, sRate,isPad,padLength)
@@ -29,6 +30,12 @@ function [ps,f,n]=fta_power_spectrum(data,wl,srate, ...
 % Author: Marco Buiatti, CIMeC (University of Trento, Italy), 2016-.
 
 % Adding zero-padding logic here
+
+
+nep=length(data);
+for iSeg = 1:nep
+    data{iSeg}(badCh, :) = [];
+end
 
 if(isPad)
     if(isempty(rejLength))

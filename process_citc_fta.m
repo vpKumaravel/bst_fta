@@ -167,10 +167,14 @@ function OutputFiles = Run(sProcess, sInput)
        bst_report('Error', sProcess, [], strMsg);
        return;
    end
+
+     % find bad channels (if any)
+  badChannels = find(DataStruct.ChannelFlag==-1);
    
  
    
-  [itc, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, imagingKernel);
+  [itc, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, ...
+                                imagingKernel, badChannels);
   
    %---Power Spectrum---
    itc = permute(itc, [1 3 2]); 
@@ -226,16 +230,17 @@ function OutputFiles = Run(sProcess, sInput)
 end
 
 %% ===== COMPUTE =====
-function [itc, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, imagingKernel)
+function [itc, interval, Nwin]=Compute(sProcess,sInput,inputData, ...
+    WindowLength, imagingKernel, badChannels)
     
-    [itc,interval,Nwin] = fta_itc(inputData,WindowLength,imagingKernel);
+    [itc,interval,Nwin] = fta_itc(inputData,WindowLength,imagingKernel, badChannels);
     bst_report('Info', sProcess, sInput, sprintf('Number of windows used: %d\n',Nwin));
     
 end
 
 %% ===== Computation logic for ITC goes here =====
 
-function [itc,interval,N] = fta_itc(data,wl,ImagingKernel)
+function [itc,interval,N] = fta_itc(data,wl,ImagingKernel, badChannels)
     % [itc,an,f] = fta_itc(data,wl,srate)
     % Computes Inter-Trial Coherence on all channels of EEG data over
     % consecutive non-overlapping windows (trials)
@@ -251,6 +256,9 @@ function [itc,interval,N] = fta_itc(data,wl,ImagingKernel)
     %
     % Author: Marco Buiatti, CIMeC (University of Trento, Italy), 2016-2017.
     nep=length(data);
+    for iSeg = 1:nep
+        data{iSeg}(badCh, :) = [];
+    end
     N=0; % trial counter
     for ep=1:nep
         if size(data{ep},2) >= wl
