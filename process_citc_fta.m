@@ -49,9 +49,17 @@ function sProcess = GetDescription()
     sProcess.options.sensortypes.Group   = 'input';
     
     % Options: Boundary event Label
-    sProcess.options.BL.Comment = 'Event Label';
+    sProcess.options.BL.Comment = 'Boundary Event Label';
     sProcess.options.BL.Type    = 'text';
     sProcess.options.BL.Value   = 'boundary';
+
+    % Options: Stimulation event Label
+    % Segments must start at the beginning of a stimulation cycle for the
+    % evoked power spectrum / ITC to be meaningful, so we need to know
+    % which event marks that cycle onset.
+    sProcess.options.SL.Comment = 'Stimulation Event Label';
+    sProcess.options.SL.Type    = 'text';
+    sProcess.options.SL.Value   = 'DIN1'; % {Other options: 'DIN2', 'DIN3'}
 
     % Options: Window Length
     sProcess.options.windowlen.Comment = 'Window Length';
@@ -100,51 +108,109 @@ function OutputFiles = Run(sProcess, sInput)
         bst_report('Info', sProcess, sInput, strMsg);
     end
     
-    %---Extracting data Boundaries
+    % Extracting data Boundaries
     if(~isempty(sProcess.options.BL.Value))
         user_event = sProcess.options.BL.Value;
     end
-    
-    % Please optimize this code - this looping isn't necessary!
+
+    % Extracting stimulation event label (cycle onset marker)
+    stim_event = sProcess.options.SL.Value;
+    if isempty(stim_event)
+        bst_report('Error', sProcess, sInput, 'Stimulation Event Label cannot be empty.');
+        return;
+    end
+
+    % Collect stimulation event sample indices
     [~, NEvents]=size(DataStruct.Events);
-    isBound = 1;
-    for BoundPos=1:NEvents
-        if strcmp(user_event,DataStruct.Events(BoundPos).label)
+    stimSamples = [];
+    isStim = 0;
+    for StimPos=1:NEvents
+        if strcmp(stim_event, DataStruct.Events(StimPos).label)
+            isStim = 1;
+            if isfield(DataStruct.Events, 'samples') && ~isempty(DataStruct.Events(StimPos).samples)
+                stimSamples = DataStruct.Events(StimPos).samples;
+            else
+                stimSamples = round(DataStruct.Events(StimPos).times * sRate);
+            end
+            % the first row
+            stimSamples = sort(stimSamples(1, :));
             break
-        elseif BoundPos==NEvents
-            strMsg = ['No ' user_event ' event found in the data, processing all data points.'];
-            bst_report('Warning', sProcess, [], strMsg);
-            isBound = 0;
         end
     end
+    if ~isStim
+        strMsg = ['No ' stim_event ' event found in the data. Cannot align segments to the stimulation cycle. Aborting...'];
+        bst_report('Error', sProcess, sInput, strMsg);
+        return;
+    end
     
-     % Collect the data relevant to the Event label
+    isBound = 1;
+    BoundPos = find(strcmp(user_event, {DataStruct.Events.label}), 1);
+    if isempty(BoundPos)
+        strMsg = ['No ' user_event ...
+            ' event found in the data, processing all data points.'];
+        bst_report('Warning', sProcess, [], strMsg);
+        isBound = 0;
+    end
+    
+     % Collect the raw (boundary-delimited) chunks
      if(isBound)
-        if isfield(DataStruct.Events, 'samples') % check with Marco
+        if isfield(DataStruct.Events, 'samples')
             seg_intervals=DataStruct.Events(BoundPos).samples;
         else
             seg_intervals=round(DataStruct.Events(BoundPos).times * sRate);
         end
         nSegments = size(seg_intervals, 2);
-        segDataStruct = cell(1, size(seg_intervals, 2) - 1);
+        rawChunks = cell(1, 0);
 
         for iSeg=1:nSegments-1
                 start_idx = seg_intervals(1, iSeg);
                 end_idx = seg_intervals(1, iSeg + 1) - 1;
-                segDataStruct{iSeg}=inputData(:, start_idx:end_idx);
+                rawChunks{end+1}   = [start_idx, end_idx]; %#ok<AGROW>
         end
         
         if(seg_intervals(1) ~= 1)
-             segDataStruct{length(segDataStruct)+1}=inputData(:, 1:seg_intervals(1));
+             rawChunks{end+1} = [1, seg_intervals(1)];
         end
         
         if(seg_intervals(end) ~= size(inputData,2))
-            segDataStruct{length(segDataStruct)+1}=inputData(:, seg_intervals(1, end):size(inputData,2));
+            rawChunks{end+1} = [seg_intervals(1, end), size(inputData,2)];
+        end
+
+        % Realign every chunk (inter-boundary AND the pre-first/post-last
+        % edge pieces) to the first stimulation event it contains
+        segDataStruct = cell(1, 0);
+        for iChunk = 1:length(rawChunks)
+            c_start = rawChunks{iChunk}(1);
+            c_end   = rawChunks{iChunk}(2);
+            firstStim = stimSamples(find(stimSamples >= c_start & stimSamples <= c_end, 1, 'first'));
+            if isempty(firstStim)
+                strMsg = sprintf(['No ' stim_event ' event found within chunk [%d %d] samples. ' ...
+                    'Discarding this chunk.'], c_start, c_end);
+                bst_report('Warning', sProcess, [], strMsg);
+                continue;
+            end
+            segDataStruct{end+1} = inputData(:, firstStim:c_end); %#ok<AGROW>
         end
         
         inputData = segDataStruct; % override inputData in case of boundary segments
     else
-        inputData = {inputData}; % else convert the data into a cell array
+        % No boundary events: still need to align the single chunk
+        % (whole recording) to the first stimulation event
+        c_start = 1;
+        c_end = size(inputData, 2);
+        firstStim = stimSamples(find(stimSamples >= c_start & stimSamples <= c_end, 1, 'first'));
+        if isempty(firstStim)
+            strMsg = ['No ' stim_event ' event found in the data. Cannot align segments. Aborting...'];
+            bst_report('Error', sProcess, sInput, strMsg);
+            return;
+        end
+        inputData = {inputData(:, firstStim:c_end)}; % else convert the data into a cell array
+    end
+
+    if(isempty(inputData))
+       strMsg = 'No segment contained a stimulation event; nothing to process.';
+       bst_report('Error', sProcess, [], strMsg);
+       return;
     end
     
    %Window is positive and not =0
@@ -257,7 +323,7 @@ function [itc,interval,N] = fta_itc(data,wl,ImagingKernel, badChannels)
     % Author: Marco Buiatti, CIMeC (University of Trento, Italy), 2016-2017.
     nep=length(data);
     for iSeg = 1:nep
-        data{iSeg}(badCh, :) = [];
+        data{iSeg}(badChannels, :) = [];
     end
     N=0; % trial counter
     for ep=1:nep
