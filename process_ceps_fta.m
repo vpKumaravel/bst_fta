@@ -30,7 +30,7 @@ end
 function sProcess = GetDescription()
     % Description the process
     sProcess.Comment     = 'Compute Evoked Power Spectrum';
-    sProcess.FileTag     = 'fta_cps';
+    sProcess.FileTag     = 'fta_ceps';
     sProcess.Category    = 'File';
     sProcess.SubGroup    = 'Frequency Tagging Analysis';
     sProcess.Index       = 600;
@@ -66,14 +66,14 @@ function sProcess = GetDescription()
     sProcess.options.windowlen.Value   = {10, 'seconds', 3};
     
     % === Upper bound overlap framing
-    sProcess.options.Uepochoverlap.Comment = 'Max. Overlap Factor';
-    sProcess.options.Uepochoverlap.Type    = 'value';
-    sProcess.options.Uepochoverlap.Value   = {75, '%', 0};
+    % sProcess.options.Uepochoverlap.Comment = 'Max. Overlap Factor';
+    % sProcess.options.Uepochoverlap.Type    = 'value';
+    % sProcess.options.Uepochoverlap.Value   = {75, '%', 0};
     
     % === Lower bound overlap framing
-    sProcess.options.Lepochoverlap.Comment = 'Min. Overlap Factor';
-    sProcess.options.Lepochoverlap.Type    = 'value';
-    sProcess.options.Lepochoverlap.Value   = {50, '%', 0};
+    % sProcess.options.Lepochoverlap.Comment = 'Min. Overlap Factor';
+    % sProcess.options.Lepochoverlap.Type    = 'value';
+    % sProcess.options.Lepochoverlap.Value   = {50, '%', 0};
     
     % === Zero-Padding Checkbox
     sProcess.options.isZeroPad.Comment     = 'Zero-Padding (in case of shorter epochs)';
@@ -298,35 +298,37 @@ function OutputFiles = Run(sProcess, sInput)
    % Taper is Square
    psdKernel   = ones(1,WindowLength)/WindowLength; 
    
-      %lower limit<upper limit
-   if (sProcess.options.Lepochoverlap.Value{1}>sProcess.options.Uepochoverlap.Value{1})
-       bst_report('Warning', sProcess, sProcess.options.Lepochoverlap.Value{1}, 'Upper overlap bound lower than lower overlap bound, automatic switch');
-        temp=sProcess.options.Lepochoverlap.Value{1};
-        sProcess.options.Lepochoverlap.Value{1}=sProcess.options.Uepochoverlap.Value{1};
-        sProcess.options.Uepochoverlap.Value{1}=temp;
-   end
-   
-  %make the code easier to read
-  UpperBound=sProcess.options.Uepochoverlap.Value{1}/100;
-  LowerBound=sProcess.options.Lepochoverlap.Value{1}/100;
+   % lower limit<upper limit
+   % if (sProcess.options.Lepochoverlap.Value{1}>sProcess.options.Uepochoverlap.Value{1})
+   %     bst_report('Warning', sProcess, sProcess.options.Lepochoverlap.Value{1}, 'Upper overlap bound lower than lower overlap bound, automatic switch');
+   %      temp=sProcess.options.Lepochoverlap.Value{1};
+   %      sProcess.options.Lepochoverlap.Value{1}=sProcess.options.Uepochoverlap.Value{1};
+   %      sProcess.options.Uepochoverlap.Value{1}=temp;
+   % end
+  
+  % UpperBound=sProcess.options.Uepochoverlap.Value{1}/100;
+  % LowerBound=sProcess.options.Lepochoverlap.Value{1}/100;
 
   % find bad channels (if any)
   badChannels = find(DataStruct.ChannelFlag==-1);
    
-  [ps, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, ...
-      UpperBound, LowerBound, psdKernel, imagingKernel, badChannels);
+  % [ps, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, ...
+  %     UpperBound, LowerBound, psdKernel, imagingKernel, badChannels);
+
+  [eps, interval, Nwin]=Compute(sProcess,sInput,inputData, WindowLength, ...
+     psdKernel, imagingKernel, badChannels);
   
    %---Power Spectrum---
-   ps = permute(ps, [1 3 2]); 
+   eps = permute(eps, [1 3 2]); 
    %Output file creation
    f=interval*sRate/WindowLength;
-   [ChannelNumber,~ ,~]=size(ps);
+   [ChannelNumber,~ ,~]=size(eps);
    Rows=1:1:ChannelNumber;
    FileMat = db_template('timefreqmat');
-   OutputFiles=bst_process('GetNewFilename',bst_fileparts(Filepath),'timefreq_psd');
+   OutputFiles=bst_process('GetNewFilename',bst_fileparts(Filepath),'timefreq_eps');
    FileMat.ChannelFlag=DataStruct.ChannelFlag;
-   FileMat.TF=ps;
-   FileMat.Comment= sprintf('PSD: %d/%d ms %s',sum(Nwin),WindowLength*(1/sRate)*1000,'Power');
+   FileMat.TF=eps;
+   FileMat.Comment= sprintf('EPS: %d/%d ms %s',sum(Nwin),WindowLength*(1/sRate)*1000,'Power');
    FileMat.DataType='data';
    FileMat.Time=[0,size(DataStruct.F,2)*(1/sRate)];
    FileMat.Freqs=f;
@@ -361,7 +363,8 @@ function OutputFiles = Run(sProcess, sInput)
        FileMat.Whitener=RDataMat.Whitener;
        FileMat.History=RDataMat.History;
    end
-   FileMat = bst_history('add', FileMat, 'compute', 'Frequency Tagging Analysis - Power Spectrum');
+   FileMat = bst_history('add', FileMat, 'compute', ...
+       'Frequency Tagging Analysis - Evoked Power Spectrum');
    % Save the new file
     save(OutputFiles,'-struct','FileMat');
     % Reference OutputFile in the database:
@@ -369,11 +372,11 @@ function OutputFiles = Run(sProcess, sInput)
 end
 
 %% ===== COMPUTE =====
-function [ps, interval, Nwin]=Compute(sProcess,sInput,inputData, ...
-    WindowLength, UpperBound, LowerBound, psdKernel, imagingKernel, badCh)
+function [eps, interval, Nwin]=Compute(sProcess,sInput,inputData, ...
+    WindowLength, psdKernel, imagingKernel, badCh)
     
-    [ps, interval, Nwin] = fta_ps(inputData, WindowLength, UpperBound, ...
-        LowerBound, psdKernel, imagingKernel, badCh);    
+    [eps, interval, Nwin] = fta_ps(inputData, WindowLength, ...
+        psdKernel, imagingKernel, badCh);    
     bst_report('Info', sProcess, sInput, sprintf('Number of windows used: %d\n',Nwin));
     
 end
@@ -381,7 +384,7 @@ end
 
 %% ===== PSD Adaptive Windowing Logic goes here =====
 
-function [ps, interval, nWin] = fta_ps(inputData, winLen, uppBound, lowBound, psdKernel, imagingKernel, badCh)
+function [eps, interval, nWin] = fta_ps(inputData, winLen, psdKernel, imagingKernel, badCh)
  
     % imagingKernel(:, badCh) = [];
     for iSeg = 1:length(inputData)
@@ -414,14 +417,14 @@ function [ps, interval, nWin] = fta_ps(inputData, winLen, uppBound, lowBound, ps
     n=1;
     
     if mod(winLen, 2) == 0
-        ps(:,1) = ap(:,1) / (w * n);
-        ps(:, 2:winLen/2) = 2*ap(:, 2:winLen/2) / (w * n);
-        ps(:, (winLen/2) + 1) = ap(:, (winLen/2) + 1) / (w * n);
+        eps(:,1) = ap(:,1) / (w * n);
+        eps(:, 2:winLen/2) = 2*ap(:, 2:winLen/2) / (w * n);
+        eps(:, (winLen/2) + 1) = ap(:, (winLen/2) + 1) / (w * n);
         interval = 0:1:(winLen/2);
     else
-        ps(:,1) = ap(:,1) / (w * n);
-        ps(:, 2:ceil(winLen/2)) = 2*ap(:, 2:ceil(winLen/2)) / (w * n);
-        ps(:, ceil(winLen/2) + 1) = ap(:, ceil(winLen/2) + 1) / (w * n);
+        eps(:,1) = ap(:,1) / (w * n);
+        eps(:, 2:ceil(winLen/2)) = 2*ap(:, 2:ceil(winLen/2)) / (w * n);
+        eps(:, ceil(winLen/2) + 1) = ap(:, ceil(winLen/2) + 1) / (w * n);
         interval = 0:1:(ceil(winLen/2));
     end
 end

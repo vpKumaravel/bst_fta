@@ -34,7 +34,7 @@ function [ps,f,n]=fta_power_spectrum(data,wl,srate, ...
 
 nep=length(data);
 for iSeg = 1:nep
-    data{iSeg}(badCh, :) = [];
+    data{iSeg}(badChannels, :) = [];
 end
 
 if(isPad)
