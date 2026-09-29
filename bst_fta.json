@@ -1,0 +1,13 @@
+{
+    "Name": “bst_fta”,
+    "Version": "github-main",
+    "URLzip": ""https://github.com/vpKumaravel/bst-fta/archive/refs/heads/",
+    "URLinfo": "https://github.com/vpKumaravel/bst-fta”,
+    "TestFile": "processes/process_ceps_fta.m”,
+    "LoadFolders": [
+        "processes",
+        "functions"
+    ],
+    "AutoUpdate": true,
+    "AutoLoad": true
+}
