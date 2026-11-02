@@ -56,7 +56,7 @@ function sProcess = GetDescription()
     sProcess.options.BL.Value   = 'boundary';
 
     % Options: Stimulation event Label
-    sProcess.options.SL.Comment = 'Stimulation Event Label';
+    sProcess.options.SL.Comment = 'Stimulation Event Labels (comma-separated)';
     sProcess.options.SL.Type    = 'text';
     sProcess.options.SL.Value   = 'DIN1'; % {Other options: 'DIN2', 'DIN3'}
 
@@ -135,42 +135,137 @@ function OutputFiles = Run(sProcess, sInput)
 
     % Extracting stimulation event label (cycle onset marker)
     stim_event = sProcess.options.SL.Value;
-    if isempty(stim_event)
-        bst_report('Error', sProcess, sInput, 'Stimulation Event Label cannot be empty.');
+    if isempty(stim_event) || isempty(strtrim(stim_event))
+        bst_report('Error', sProcess, sInput, ...
+            'Stimulation Event Label cannot be empty.');
         return;
     end
 
-    % Collect stimulation event sample indices
-    [~, NEvents] = size(DataStruct.Events);
-    stimSamples = [];
-    isStim = 0;
+    % Parse comma-separated stimulation event labels
+    requestedEvents = strsplit(stim_event, ',');
+    requestedEvents = cellfun(@strtrim, requestedEvents, ...
+        'UniformOutput', false);
 
-    for StimPos = 1:NEvents
-        if strcmp(stim_event, DataStruct.Events(StimPos).label)
-            isStim = 1;
+    % Remove empty entries
+    requestedEvents = requestedEvents(~cellfun(@isempty, requestedEvents));
+
+    % Remove duplicate requested events (case-insensitive)
+    uniqueEvents = {};
+    for i = 1:length(requestedEvents)
+        if ~any(strcmpi(requestedEvents{i}, uniqueEvents))
+            uniqueEvents{end+1} = requestedEvents{i};
+        end
+    end
+    requestedEvents = uniqueEvents;
+
+    if isempty(requestedEvents)
+        bst_report('Error', sProcess, sInput, ...
+            'No valid stimulation event labels were provided.');
+        return;
+    end
+
+    % Retrieve available event labels from the data
+    if isempty(DataStruct.Events) || ...
+            ~isfield(DataStruct.Events, 'label')
+        bst_report('Error', sProcess, sInput, ...
+            'No events are available in the data.');
+        return;
+    end
+
+    availableLabels = {DataStruct.Events.label};
+
+    % Validate requested events and collect sample indices
+    stimSamples = [];
+    validEvents = {};
+    missingEvents = {};
+    correctedEvents = {};
+
+    for iEvent = 1:length(requestedEvents)
+
+        requestedLabel = requestedEvents{iEvent};
+
+        % Case-insensitive comparison after removing spaces
+        matchingPositions = find(cellfun(@(x) ...
+            strcmpi(strtrim(x), requestedLabel), availableLabels));
+
+        if isempty(matchingPositions)
+            missingEvents{end+1} = requestedLabel;
+            continue;
+        end
+
+        % Get the actual event label as stored in the data
+        actualLabel = strtrim(availableLabels{matchingPositions(1)});
+
+        % Detect capitalization corrections
+        if ~strcmp(requestedLabel, actualLabel)
+            if strcmpi(requestedLabel, actualLabel)
+                correctedEvents{end+1} = ...
+                    [requestedLabel ' -> ' actualLabel];
+            end
+        end
+
+        validEvents{end+1} = actualLabel;
+
+        % Collect samples from ALL matching event structures
+        for iMatch = 1:length(matchingPositions)
+
+            EventPos = matchingPositions(iMatch);
 
             if isfield(DataStruct.Events, 'samples') && ...
-                    ~isempty(DataStruct.Events(StimPos).samples)
+                    ~isempty(DataStruct.Events(EventPos).samples)
 
-                stimSamples = DataStruct.Events(StimPos).samples;
+                eventSamples = DataStruct.Events(EventPos).samples;
+
             else
-                stimSamples = round( ...
-                    DataStruct.Events(StimPos).times * sRate);
+                eventSamples = round( ...
+                    DataStruct.Events(EventPos).times * sRate);
             end
 
-            % the first row
-            stimSamples = sort(stimSamples(1, :));
-            break
+            % Use the first row of the sample matrix
+            stimSamples = [stimSamples, eventSamples(1, :)]; %#ok<AGROW>
+
         end
     end
 
-    if ~isStim
-        strMsg = ['No ' stim_event ...
-            ' event found in the data. Cannot align segments to the ' ...
-            'stimulation cycle. Aborting...'];
-        bst_report('Error', sProcess, sInput, strMsg);
+    if ~isempty(correctedEvents)
+        strMsg = sprintf( ...
+            'Event capitalization automatically corrected: %s', ...
+            strjoin(correctedEvents, ', '));
+
+        bst_report('Info', sProcess, sInput, strMsg);
+    end
+
+    % Handle missing events
+    if ~isempty(missingEvents)
+        strMsg = sprintf( ...
+            'The following stimulation events were not found: %s', ...
+            strjoin(missingEvents, ', '));
+
+        if isempty(validEvents)
+            bst_report('Error', sProcess, sInput, ...
+                [strMsg '. No valid stimulation events remain. Aborting...']);
+            return;
+        else
+            bst_report('Warning', sProcess, sInput, ...
+                [strMsg '. Proceeding with the available events: ' ...
+                strjoin(validEvents, ', ')]);
+        end
+    end
+
+    if isempty(stimSamples)
+        bst_report('Error', sProcess, sInput, ...
+            'No stimulation samples were found. Aborting...');
         return;
     end
+
+    % Sort and remove duplicate stimulation sample indices
+    stimSamples = unique(sort(stimSamples));
+
+    % Report selected events
+    strMsg = sprintf('Stimulation events used: %s', ...
+        strjoin(validEvents, ', '));
+
+    bst_report('Info', sProcess, sInput, strMsg);
 
     isBound = 1;
     BoundPos = find(strcmp(user_event, {DataStruct.Events.label}), 1);
@@ -208,20 +303,35 @@ function OutputFiles = Run(sProcess, sInput)
         % Realign every chunk (inter-boundary AND the pre-first/post-last
         % edge pieces) to the first stimulation event it contains
         segDataStruct = cell(1, 0);
+        SampleIntervals = zeros(0, 2);
+        nDiscarded = 0;
+
         for iChunk = 1:length(rawChunks)
             c_start = rawChunks{iChunk}(1);
             c_end   = rawChunks{iChunk}(2);
             firstStim = stimSamples(find(stimSamples >= c_start & stimSamples <= c_end, 1, 'first'));
             if isempty(firstStim)
-                strMsg = sprintf(['No ' stim_event ' event found within chunk [%d %d] samples. ' ...
-                    'Discarding this chunk.'], c_start, c_end);
-                bst_report('Warning', sProcess, [], strMsg);
+                nDiscarded = nDiscarded + 1;
+                % strMsg = sprintf(['No ' stim_event ' event found within chunk [%d %d] samples. ' ...
+                %     'Discarding this chunk.'], c_start, c_end);
+                % bst_report('Warning', sProcess, [], strMsg);
                 continue;
             end
+            % Extract segment aligned to the first stimulation event
             segDataStruct{end+1} = inputData(:, firstStim:c_end); %#ok<AGROW>
+            % Store the actual sample interval used
+            SampleIntervals(end+1, :) = [firstStim, c_end]; %#ok<AGROW>
         end
         
         inputData = segDataStruct; % override inputData in case of boundary segments
+
+        % Consolidated processing report
+        strMsg = sprintf(['Segment processing completed: %d segments retained, ' ...
+            '%d chunks discarded.'], ...
+            size(SampleIntervals, 1), nDiscarded);
+
+        bst_report('Info', sProcess, sInput, strMsg);
+
     else
         % No boundary events: still need to align the single chunk
         % (whole recording) to the first stimulation event
@@ -234,6 +344,7 @@ function OutputFiles = Run(sProcess, sInput)
             return;
         end
         inputData = {inputData(:, firstStim:c_end)}; % else convert the data into a cell array
+        SampleIntervals = [firstStim, c_end];
     end
 
     if(isempty(inputData))
@@ -287,7 +398,11 @@ function OutputFiles = Run(sProcess, sInput)
        size_factor(iSeg)=length(inputData{iSeg}(1,:))/WindowLength;
    end
    
-   inputData(size_factor<1) = [];
+   % inputData(size_factor<1) = [];
+   validSegments = size_factor >= 1;
+
+   inputData = inputData(validSegments);
+   SampleIntervals = SampleIntervals(validSegments, :);
    
    if(isempty(inputData))
        strMsg = 'Too short data for the PSD computation';
@@ -329,6 +444,7 @@ function OutputFiles = Run(sProcess, sInput)
    FileMat.ChannelFlag=DataStruct.ChannelFlag;
    FileMat.TF=eps;
    FileMat.Comment= sprintf('EPS: %d/%d ms %s',sum(Nwin),WindowLength*(1/sRate)*1000,'Power');
+   FileMat.SampleIntervals = SampleIntervals;
    FileMat.DataType='data';
    FileMat.Time=[0,size(DataStruct.F,2)*(1/sRate)];
    FileMat.Freqs=f;
@@ -365,10 +481,12 @@ function OutputFiles = Run(sProcess, sInput)
    end
    FileMat = bst_history('add', FileMat, 'compute', ...
        'Frequency Tagging Analysis - Evoked Power Spectrum');
+   % disp(FileMat.SampleIntervals);
    % Save the new file
     save(OutputFiles,'-struct','FileMat');
     % Reference OutputFile in the database:
     db_add_data(sInput.iStudy, OutputFiles,FileMat);
+    bst_report('Open', 'current');
 end
 
 %% ===== COMPUTE =====
